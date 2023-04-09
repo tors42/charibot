@@ -1,0 +1,3 @@
+module charibot {
+    requires chariot;
+}
