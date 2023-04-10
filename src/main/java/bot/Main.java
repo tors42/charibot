@@ -10,8 +10,9 @@ import chariot.model.Game.Status;
 import chariot.model.GameEvent.*;
 import chariot.util.Board;
 
+import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -34,15 +35,6 @@ class Main {
             return;
         }
 
-        // Connect the BOT to Lichess
-        var connect = client.bot().connect();
-
-        // Check for failure
-        if (connect instanceof Fail<?> f) {
-            System.out.println("Failed to connect " + f);
-            return;
-        }
-
         // Prepare queues for ongoing games and incoming challenges.
         var games      = new ArrayBlockingQueue<GameEvent>(64);
         var challenges = new ArrayBlockingQueue<ChallengeEvent>(64);;
@@ -50,18 +42,36 @@ class Main {
 
         // Listen for game start events and incoming challenges,
         // and just put them in the queues ("Producer")
-        var thread1 = new Thread(() ->
-                connect.stream().forEach(
-                    event -> { switch(event.type()) {
-                        case challenge:
-                            challenges.add((ChallengeEvent)event);
-                            break;
-                        case gameStart:
-                            games.add((GameEvent)event);
-                            break;
-                        default:
-                            break;
-                    }}), "Lichess Event Stream");
+        var thread1 = new Thread(() -> {
+            while(true) {
+                try {
+                    // Connect the BOT to Lichess
+                    var connect = client.bot().connect();
+
+                    // Check for failure
+                    if (connect instanceof Fail<?> f) {
+                        System.out.println("Failed to connect " + f);
+                        TimeUnit.SECONDS.sleep(15);
+                        continue;
+                    }
+
+                    connect.stream().forEach(
+                            event -> { switch(event.type()) {
+                                case challenge:
+                                    challenges.add((ChallengeEvent)event);
+                                    break;
+                                case gameStart:
+                                    games.add((GameEvent)event);
+                                    break;
+                                default:
+                                    break;
+                            }});
+                } catch(Exception e) {
+                    System.out.println(e.getMessage());
+                    System.out.println(Instant.now());
+                }
+            }
+        }, "Lichess Event Stream");
 
 
         // Accept or Decline incoming challenges ("Consumer")
