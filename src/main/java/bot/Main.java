@@ -6,11 +6,14 @@ import chariot.model.*;
 import chariot.model.Enums.*;
 import chariot.model.Event.*;
 import chariot.model.Event.GameEvent;
+import chariot.model.Game.Status;
 import chariot.model.GameEvent.*;
 import chariot.util.Board;
 
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 class Main {
 
@@ -25,9 +28,9 @@ class Main {
 
         var client = Client.auth(token);
 
-        var account = client.account().profile();
-        if (account instanceof Fail<?> f) {
-            System.out.println("Failed to lookup account " + f);
+        var profile = client.account().profile();
+        if (! (profile instanceof Entry<User> one)) {
+            System.out.println("Failed to lookup account " + profile);
             return;
         }
 
@@ -97,54 +100,49 @@ class Main {
                 try {
                     var game = games.take();
                     var fen = game.game().fen();
-                    new Thread(() ->
-                            client.bot().connectToGame(game.id()).stream()
-                            .forEach(event -> { switch(event.type()) {
-                                case gameState -> {
-                                    State state = (State) event;
-                                    System.out.println("State:\n"+state);
-                                    Board board = Board.fromFEN(fen);
-                                    for (var move : state.moves().split(" ")) {
-                                        board = board.play(move);
-                                    }
+                    new Thread(() -> {
+                        var ourColor = new AtomicReference<>(game.game().color());
 
-                                    boolean ourTurn = game.game().color() == Color.white
-                                        ? board.whiteToMove()
-                                        : board.blackToMove();
+                        Consumer<Board> processBoard = board -> {
+                            boolean ourTurn = ourColor.get() == Color.white
+                                ? board.whiteToMove()
+                                : board.blackToMove();
 
+                            if (ourTurn) {
+                                // Hmm... Need to look up promotion moves...
 
-                                    if (ourTurn) {
-                                        // Hmm... Need to look up promotion moves...
+                                var moves = new ArrayList<>(board.validMoves());
+                                Collections.shuffle(moves, new Random());
 
-                                        var moves = new ArrayList<>(board.validMoves());
-                                        Collections.shuffle(moves, new Random());
+                                boolean success = false;
+                                for (var move : moves) {
+                                    String uci = move.uci();
 
-                                        boolean success = false;
-                                        for (var move : moves) {
-                                            String uci = move.uci();
-
-                                            System.out.println("Playing [%s]".formatted(uci));
-                                            var result = client.bot().move(game.id(), uci);
-                                            if (result instanceof Fail<?> f) {
-                                                System.out.println("Play failed");
-                                            } else {
-                                                success = true;
-                                                break;
-                                            }
-                                        }
-
-                                        if (! success) {
-                                            System.out.println("No moved worked.. Trying resign");
-                                            client.bot().resign(game.id());
-                                        }
+                                    System.out.println("Playing [%s]".formatted(uci));
+                                    var result = client.bot().move(game.id(), uci);
+                                    if (result instanceof Fail<?> f) {
+                                        System.out.println("Play failed");
+                                    } else {
+                                        success = true;
+                                        break;
                                     }
                                 }
 
-                                case opponentGone -> System.out.println("Gone:\n"+event);
+                                if (! success) {
+                                    System.out.println("No moved worked.. Trying resign");
+                                    client.bot().resign(game.id());
+                                }
+                            }
+                        };
 
-                                case chatLine -> System.out.println("Chat:\n"+event);
+                        client.bot().connectToGame(game.id()).stream()
+                            .forEach(event -> { switch(event.type()) {
                                 case gameFull -> {
-                                    System.out.println("Full:\n"+event);
+                                    Full full = (Full) event;
+                                    System.out.println("Full:\n"+full);
+                                    ourColor.set(full.white().id().equals(one.entry().id())
+                                        ? Color.white : Color.black);
+
                                     client.bot().chat(game.id(), """
                                             Hello!
                                             I haven't existed for long,
@@ -152,8 +150,31 @@ class Main {
                                             Let us hope things will go smooth.
                                             I wish you a good game!
                                             """);
+
+                                    processBoard.accept(Board.fromFEN(fen));
+
                                 }
-                            }}), "Game-" + game.id()).start();
+                                case gameState -> {
+                                    State state = (State) event;
+                                    Board board = Board.fromFEN(fen);
+                                    for (var move : state.moves().split(" ")) {
+                                        board = board.play(move);
+                                    }
+                                    System.out.println("fen: " + board.toFEN());
+                                    if (state.status().ordinal() > Status.started.ordinal()) {
+                                        client.bot().chat(game.id(), """
+                                                Thanks for the game!
+                                                """);
+                                        return;
+                                    }
+                                    processBoard.accept(board);
+                                }
+
+                                case opponentGone -> System.out.println("Gone:\n"+event);
+                                case chatLine -> System.out.println("Chat:\n"+event);
+                            }});
+
+                    }, "Game-" + game.id()).start();
                 } catch (InterruptedException ie) {}
             }
         }, "Game Acceptor");
