@@ -81,14 +81,13 @@ class Main {
                         client.challenges().declineChallenge(challenge.id(), d -> d.rated());
                         continue;
                     }
-
                     if (!c.variant().key().equals(GameVariant.standard)) {
                         System.out.println("Declinining challenge because not standard,\n" + challenge);
                         client.challenges().declineChallenge(challenge.id(), d -> d.standard());
                         continue;
                     }
-                    if (! games.isEmpty()) {
-                        System.out.println("Declinining challenge because ongoing game,\n" + challenge);
+                    if (games.size() >= 5) {
+                        System.out.println("Declinining challenge because ongoing games,\n" + challenge);
                         client.challenges().declineChallenge(challenge.id(), d -> d.later());
                         continue;
                     }
