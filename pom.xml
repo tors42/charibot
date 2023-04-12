@@ -2,7 +2,7 @@
 <project>
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.tors42.github</groupId>
+    <groupId>io.github.tors42</groupId>
     <artifactId>charibot</artifactId>
     <version>0.0.1-SNAPSHOT</version>
 
