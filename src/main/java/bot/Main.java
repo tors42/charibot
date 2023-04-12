@@ -122,7 +122,7 @@ class Main {
                                 for (var move : moves) {
                                     String uci = move.uci();
 
-                                    System.out.println("Playing [%s]".formatted(uci));
+                                    System.out.println("Playing [%s] (%s)".formatted(uci, board.toSAN(uci)));
                                     var result = client.bot().move(game.id(), uci);
                                     if (result instanceof Fail<?> f) {
                                         System.out.println("Play failed");
