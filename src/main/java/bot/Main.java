@@ -57,14 +57,9 @@ class Main {
 
                     connect.stream().forEach(
                             event -> { switch(event.type()) {
-                                case challenge:
-                                    challenges.add((ChallengeEvent)event);
-                                    break;
-                                case gameStart:
-                                    games.add((GameEvent)event);
-                                    break;
-                                default:
-                                    break;
+                                case challenge -> challenges.add((ChallengeEvent) event);
+                                case gameStart -> games.add((GameEvent) event);
+                                default -> {}
                             }});
                 } catch(Exception e) {
                     System.out.println(e.getMessage());
@@ -153,21 +148,34 @@ class Main {
                                     ourColor.set(full.white().id().equals(one.entry().id())
                                         ? Color.white : Color.black);
 
-                                    client.bot().chat(game.id(), """
-                                            Hello!
-                                            I haven't existed for long,
-                                            so I might contain some bugs...
-                                            Let us hope things will go smooth.
-                                            I wish you a good game!
-                                            """);
+                                    Board board = Board.fromFEN(fen);
+                                    var moves = Arrays.stream(full.state().moves().split(" "))
+                                        .filter(m -> ! m.isEmpty())
+                                        .toList();
 
-                                    processBoard.accept(Board.fromFEN(fen));
+                                    if (moves.isEmpty()) {
+                                        client.bot().chat(game.id(), """
+                                                Hello!
+                                                I haven't existed for long,
+                                                so I might contain some bugs...
+                                                Let us hope things will go smooth.
+                                                I wish you a good game!
+                                                """);
+                                    }
+
+                                    for (var move : moves) {
+                                        board = board.play(move);
+                                    }
+                                    processBoard.accept(board);
 
                                 }
                                 case gameState -> {
                                     State state = (State) event;
                                     Board board = Board.fromFEN(fen);
-                                    for (var move : state.moves().split(" ")) {
+                                    var moves = Arrays.stream(state.moves().split(" "))
+                                        .filter(m -> ! m.isEmpty())
+                                        .toList();
+                                    for (var move : moves) {
                                         board = board.play(move);
                                     }
                                     System.out.println("fen: " + board.toFEN());
