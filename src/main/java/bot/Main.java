@@ -1,19 +1,16 @@
 package bot;
 
-
 import chariot.*;
 import chariot.model.*;
 import chariot.model.Enums.*;
 import chariot.model.Event.*;
 import chariot.model.Event.GameEvent;
-import chariot.model.Game.Status;
 import chariot.model.GameEvent.*;
 import chariot.util.Board;
 
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 class Main {
@@ -42,7 +39,8 @@ class Main {
 
         // Listen for game start events and incoming challenges,
         // and just put them in the queues ("Producer")
-        var thread1 = new Thread(() -> {
+        var executor = Executors.newCachedThreadPool();
+        executor.submit(() -> {
             while(true) {
                 try {
                     // Connect the BOT to Lichess
@@ -55,23 +53,22 @@ class Main {
                         continue;
                     }
 
-                    connect.stream().forEach(
-                            event -> { switch(event.type()) {
-                                case challenge -> challenges.add((ChallengeEvent) event);
-                                case gameStart -> games.add((GameEvent) event);
-                                default -> {}
-                            }});
+                    connect.stream().forEach(event -> { switch(event.type()) {
+                        case challenge -> challenges.add((ChallengeEvent) event);
+                        case gameStart -> games.add((GameEvent) event);
+                        default -> {}
+                    }});
+
                 } catch(Exception e) {
-                    System.out.println(e.getMessage());
-                    System.out.println(Instant.now());
+                    System.out.println("EventStream: %s\n%s".formatted(e.getMessage(), Instant.now()));
                 }
             }
-        }, "Lichess Event Stream");
+        });
 
 
         // Accept or Decline incoming challenges ("Consumer")
-        var thread2 = new Thread(() -> {
-            while(!Thread.interrupted()) {
+        executor.submit(() -> {
+            while(true) {
                 try {
                     var challenge = challenges.take();
                     Challenge c = challenge.challenge();
@@ -92,50 +89,47 @@ class Main {
                         continue;
                     }
 
-                    System.out.println("Accepting challenge,\n" + challenge);
+                    System.out.println("Accepting challenge from %s,\n%s".formatted(c.challenger().name(),  challenge));
                     client.challenges().acceptChallenge(challenge.id());
-                } catch (InterruptedException ie) {}
+                } catch (Exception e) {
+                    System.out.println("ChallengeAcceptor: %s\n%s".formatted(e.getMessage(), Instant.now()));
+                }
             }
-        }, "Challenge Acceptor");
+        });
 
         // Create handler for started games ("Consumer")
-        var thread3 = new Thread(() -> {
-            while(!Thread.interrupted()) {
+        executor.submit(() -> {
+            while(true) {
                 try {
                     var game = games.take();
-                    var fen = game.game().fen();
-                    new Thread(() -> {
-                        var ourColor = new AtomicReference<>(game.game().color());
+                    executor.submit(() -> {
+                        System.out.println("Game:\n" + game);
+                        var fen = game.game().fen();
+                        var ourColor = game.game().color();
 
                         Consumer<Board> processBoard = board -> {
-                            boolean ourTurn = ourColor.get() == Color.white
-                                ? board.whiteToMove()
-                                : board.blackToMove();
+                            var ourTurn = ourColor == Color.white ? board.whiteToMove() : board.blackToMove();
+                            if (! ourTurn) return;
 
-                            if (ourTurn) {
-                                // Hmm... Need to look up promotion moves...
+                            var moves = new ArrayList<>(board.validMoves());
+                            Collections.shuffle(moves, new Random());
 
-                                var moves = new ArrayList<>(board.validMoves());
-                                Collections.shuffle(moves, new Random());
-
-                                boolean success = false;
-                                for (var move : moves) {
-                                    String uci = move.uci();
-
-                                    System.out.println("Playing [%s] (%s)".formatted(uci, board.toSAN(uci)));
-                                    var result = client.bot().move(game.id(), uci);
-                                    if (result instanceof Fail<?> f) {
-                                        System.out.println("Play failed");
-                                    } else {
-                                        success = true;
-                                        break;
-                                    }
+                            boolean success = false;
+                            for (var move : moves) {
+                                String uci = move.uci();
+                                System.out.println("Playing [%s] (%s)".formatted(uci, board.toSAN(uci)));
+                                var result = client.bot().move(game.id(), uci);
+                                if (result instanceof Fail<?> f) {
+                                    System.out.println("Play failed: " + f);
+                                } else {
+                                    success = true;
+                                    break;
                                 }
+                            }
 
-                                if (! success) {
-                                    System.out.println("No moved worked.. Trying resign");
-                                    client.bot().resign(game.id());
-                                }
+                            if (! success) {
+                                System.out.println("No move worked.. Trying resign");
+                                client.bot().resign(game.id());
                             }
                         };
 
@@ -144,15 +138,8 @@ class Main {
                                 case gameFull -> {
                                     Full full = (Full) event;
                                     System.out.println("Full:\n"+full);
-                                    ourColor.set(full.white().id().equals(one.entry().id())
-                                        ? Color.white : Color.black);
 
-                                    Board board = Board.fromFEN(fen);
-                                    var moves = Arrays.stream(full.state().moves().split(" "))
-                                        .filter(m -> ! m.isEmpty())
-                                        .toList();
-
-                                    if (moves.isEmpty()) {
+                                    if (full.state().moves().isBlank()) {
                                         client.bot().chat(game.id(), """
                                                 Hello!
                                                 I haven't existed for long,
@@ -161,52 +148,38 @@ class Main {
                                                 I wish you a good game!
                                                 """);
                                     }
-
-                                    for (var move : moves) {
-                                        board = board.play(move);
-                                    }
+                                    var board = Board.fromFEN(fen);
+                                    if (! full.state().moves().isEmpty()) board = board.play(full.state().moves());
                                     processBoard.accept(board);
-
                                 }
                                 case gameState -> {
                                     State state = (State) event;
-                                    Board board = Board.fromFEN(fen);
-                                    var moves = Arrays.stream(state.moves().split(" "))
-                                        .filter(m -> ! m.isEmpty())
-                                        .toList();
-                                    for (var move : moves) {
-                                        board = board.play(move);
+                                    Board board = Board.fromFEN(fen).play(state.moves());
+
+                                    System.out.println("%s %s %s".formatted(board.toFEN(), board.gameState(), state.status()));
+
+                                    if (state.status().ordinal() > Game.Status.started.ordinal()) {
+                                        client.bot().chat(game.id(), "Thanks for the game!");
+                                        if (state.winner() == null || state.winner().isBlank()) {
+                                            System.out.println("No winner");
+                                        } else {
+                                            System.out.println("Winner: %s".formatted(state.winner()));
+                                        }
+                                    } else {
+                                        processBoard.accept(board);
                                     }
-                                    System.out.println("fen: " + board.toFEN());
-                                    if (state.status().ordinal() > Status.started.ordinal()) {
-                                        client.bot().chat(game.id(), """
-                                                Thanks for the game!
-                                                """);
-                                        return;
-                                    }
-                                    processBoard.accept(board);
                                 }
 
                                 case opponentGone -> System.out.println("Gone:\n"+event);
                                 case chatLine -> System.out.println("Chat:\n"+event);
                             }});
-
-                    }, "Game-" + game.id()).start();
-                } catch (InterruptedException ie) {}
+                        System.out.println("GameEvent handler for %s finished".formatted(game.id()));
+                    });
+                } catch (Exception e) {
+                    System.out.println("GameAcceptor: %s\n%s".formatted(e.getMessage(), Instant.now()));
+                }
             }
-        }, "Game Acceptor");
-
-        thread1.start();
-        thread2.start();
-        thread3.start();
-        try {
-            thread1.join();
-            thread2.join();
-            thread3.join();
-        } catch(InterruptedException ie) {
-            ie.printStackTrace();
-        }
+        });
     }
-
 }
 
