@@ -102,6 +102,18 @@ class Main {
             while(true) {
                 try {
                     var game = games.take();
+
+                    String opponent = "<Opponent>";
+                    if (game.game().opponent() instanceof GameEvent.Opponent.User u) {
+                        opponent = u.username();
+                    } else if (game.game().opponent() instanceof GameEvent.Opponent.AI ai) {
+                        opponent = ai.username() + " - " + ai.ai();
+                    }
+                    var white = game.game().color() == Color.white
+                        ? one.entry().username() : opponent;
+                    var black = game.game().color() == Color.black
+                        ? one.entry().username() : opponent;
+
                     executor.submit(() -> {
                         System.out.println("Game:\n" + game);
 
@@ -116,13 +128,11 @@ class Main {
                             var moves = new ArrayList<>(board.validMoves());
                             Collections.shuffle(moves, new Random());
                             var result = moves.stream().map(m -> m.uci())
-                                .peek(uci -> System.out.println("Playing [%s] (%s)".formatted(uci, board.toSAN(uci))))
                                 .findFirst().map(uci -> client.bot().move(game.id(), uci))
                                 .orElse(One.fail(-1, Err.from("no move")));
 
                             if (result instanceof Fail<?> f) {
-                                System.out.println("Play failed: " + f);
-                                System.out.println("No move worked.. Trying resign");
+                                System.out.println("Play failed: %s - resigning".formatted(f));
                                 client.bot().resign(game.id());
                             }
                         };
@@ -146,8 +156,17 @@ class Main {
                                 }
                                 case gameState -> {
                                     State state = (State) event;
-                                    var board = Board.fromStandardPosition().play(state.moves());
-                                    System.out.println("%s %s %s".formatted(board.toFEN(), board.gameState(), state.status()));
+                                    var moveList = state.moveList();
+                                    if (! moveList.isEmpty()) {
+                                        var board = Board.fromStandardPosition();
+                                        if (moveList.size()-1 > 0) board = board.play(String.join(" ", moveList.subList(0, moveList.size()-1)));
+                                        String lastMove = moveList.get(moveList.size()-1);
+                                        System.out.println("%s (%s) played by %s".formatted(
+                                                    lastMove, board.toSAN(lastMove),
+                                                    board.whiteToMove() ? (white + " (w)") : (black + " (b)")));
+                                        board = board.play(lastMove);
+                                        System.out.println("%s %s %s".formatted(board.toFEN(), board.gameState(), state.status()));
+                                    }
 
                                     if (state.status().ordinal() > Game.Status.started.ordinal()) {
                                         client.bot().chat(game.id(), "Thanks for the game!");
