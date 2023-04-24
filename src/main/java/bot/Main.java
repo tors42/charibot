@@ -105,32 +105,23 @@ class Main {
                     executor.submit(() -> {
                         System.out.println("Game:\n" + game);
 
-                        var ourColor = game.game().color();
-
                         Consumer<String> processMoves = moveList -> {
-                            var board = Board.fromStandardPosition();
-                            if (! moveList.isBlank()) board = board.play(moveList);
-
-                            var ourTurn = ourColor == Color.white ? board.whiteToMove() : board.blackToMove();
-                            if (! ourTurn) return;
+                            var board = moveList.isBlank()
+                                ? Board.fromStandardPosition()
+                                : Board.fromStandardPosition().play(moveList);
+                            if (game.game().color() == Color.white
+                                ? board.blackToMove()
+                                : board.whiteToMove()) return;
 
                             var moves = new ArrayList<>(board.validMoves());
                             Collections.shuffle(moves, new Random());
+                            var result = moves.stream().map(m -> m.uci())
+                                .peek(uci -> System.out.println("Playing [%s] (%s)".formatted(uci, board.toSAN(uci))))
+                                .findFirst().map(uci -> client.bot().move(game.id(), uci))
+                                .orElse(One.fail(-1, Err.from("no move")));
 
-                            boolean success = false;
-                            for (var move : moves) {
-                                String uci = move.uci();
-                                System.out.println("Playing [%s] (%s)".formatted(uci, board.toSAN(uci)));
-                                var result = client.bot().move(game.id(), uci);
-                                if (result instanceof Fail<?> f) {
-                                    System.out.println("Play failed: " + f);
-                                } else {
-                                    success = true;
-                                    break;
-                                }
-                            }
-
-                            if (! success) {
+                            if (result instanceof Fail<?> f) {
+                                System.out.println("Play failed: " + f);
                                 System.out.println("No move worked.. Trying resign");
                                 client.bot().resign(game.id());
                             }
@@ -155,7 +146,6 @@ class Main {
                                 }
                                 case gameState -> {
                                     State state = (State) event;
-
                                     var board = Board.fromStandardPosition().play(state.moves());
                                     System.out.println("%s %s %s".formatted(board.toFEN(), board.gameState(), state.status()));
 
