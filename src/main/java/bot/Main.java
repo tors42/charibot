@@ -104,10 +104,13 @@ class Main {
                     var game = games.take();
                     executor.submit(() -> {
                         System.out.println("Game:\n" + game);
-                        var fen = game.game().fen();
+
                         var ourColor = game.game().color();
 
-                        Consumer<Board> processBoard = board -> {
+                        Consumer<String> processMoves = moveList -> {
+                            var board = Board.fromStandardPosition();
+                            if (! moveList.isBlank()) board = board.play(moveList);
+
                             var ourTurn = ourColor == Color.white ? board.whiteToMove() : board.blackToMove();
                             if (! ourTurn) return;
 
@@ -148,14 +151,12 @@ class Main {
                                                 I wish you a good game!
                                                 """);
                                     }
-                                    var board = Board.fromFEN(fen);
-                                    if (! full.state().moves().isEmpty()) board = board.play(full.state().moves());
-                                    processBoard.accept(board);
+                                    processMoves.accept(full.state().moves());
                                 }
                                 case gameState -> {
                                     State state = (State) event;
-                                    Board board = Board.fromFEN(fen).play(state.moves());
 
+                                    var board = Board.fromStandardPosition().play(state.moves());
                                     System.out.println("%s %s %s".formatted(board.toFEN(), board.gameState(), state.status()));
 
                                     if (state.status().ordinal() > Game.Status.started.ordinal()) {
@@ -166,7 +167,7 @@ class Main {
                                             System.out.println("Winner: %s".formatted(state.winner()));
                                         }
                                     } else {
-                                        processBoard.accept(board);
+                                        processMoves.accept(state.moves());
                                     }
                                 }
 
