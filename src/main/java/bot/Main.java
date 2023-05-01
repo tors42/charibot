@@ -77,7 +77,7 @@ class Main {
 
                     if (c.rated()) {
                         System.out.println("Declinining challenge because rated,\n" + challenge);
-                        client.challenges().declineChallenge(challenge.id(), d -> d.rated());
+                        client.challenges().declineChallenge(challenge.id(), d -> d.casual());
                         continue;
                     }
                     if (!c.variant().key().equals(GameVariant.standard)) {
