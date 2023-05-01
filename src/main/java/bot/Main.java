@@ -73,6 +73,8 @@ class Main {
                     var challenge = challenges.take();
                     Challenge c = challenge.challenge();
 
+                    System.out.println("Challenge from " + c.challenger());
+
                     if (c.rated()) {
                         System.out.println("Declinining challenge because rated,\n" + challenge);
                         client.challenges().declineChallenge(challenge.id(), d -> d.rated());
