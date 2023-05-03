@@ -93,6 +93,13 @@ class Main {
 
                     System.out.println("Accepting challenge from %s,\n%s".formatted(c.challenger().name(),  challenge));
                     client.challenges().acceptChallenge(challenge.id());
+                    client.bot().chat(challenge.id(), """
+                            Hello!
+                            I haven't existed for long,
+                            so I might contain some bugs...
+                            Let us hope things will go smooth.
+                            I wish you a good game!
+                            """);
                 } catch (Exception e) {
                     System.out.println("ChallengeAcceptor: %s\n%s".formatted(e.getMessage(), Instant.now()));
                 }
@@ -144,16 +151,6 @@ class Main {
                                 case gameFull -> {
                                     Full full = (Full) event;
                                     System.out.println("Full:\n"+full);
-
-                                    if (full.state().moves().isBlank()) {
-                                        client.bot().chat(game.id(), """
-                                                Hello!
-                                                I haven't existed for long,
-                                                so I might contain some bugs...
-                                                Let us hope things will go smooth.
-                                                I wish you a good game!
-                                                """);
-                                    }
                                     processMoves.accept(full.state().moves());
                                 }
                                 case gameState -> {
