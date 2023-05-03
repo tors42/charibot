@@ -33,8 +33,9 @@ class Main {
         }
 
         // Prepare queues for ongoing games and incoming challenges.
-        var games      = new ArrayBlockingQueue<GameEvent>(64);
-        var challenges = new ArrayBlockingQueue<ChallengeEvent>(64);;
+        var gamesToStart = new ArrayBlockingQueue<GameEvent>(64);
+        var challenges   = new ArrayBlockingQueue<ChallengeEvent>(64);;
+        var ongoingGames = new ArrayBlockingQueue<GameEvent>(64);
 
 
         // Listen for game start events and incoming challenges,
@@ -55,7 +56,7 @@ class Main {
 
                     connect.stream().forEach(event -> { switch(event.type()) {
                         case challenge -> challenges.add((ChallengeEvent) event);
-                        case gameStart -> games.add((GameEvent) event);
+                        case gameStart -> gamesToStart.add((GameEvent) event);
                         default -> {}
                     }});
 
@@ -76,17 +77,28 @@ class Main {
                     System.out.println("Challenge from " + c.challenger());
 
                     if (c.rated()) {
-                        System.out.println("Declinining challenge because rated,\n" + challenge);
+                        System.out.println("Declinining challenge because rated,\n%s".formatted(challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.casual());
                         continue;
                     }
                     if (!c.variant().key().equals(GameVariant.standard)) {
-                        System.out.println("Declinining challenge because not standard,\n" + challenge);
+                        System.out.println("Declinining challenge because not standard,\n%s".formatted(challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.standard());
                         continue;
                     }
-                    if (games.size() >= 5) {
-                        System.out.println("Declinining challenge because ongoing games,\n" + challenge);
+
+                    boolean alreadyPlayingSameOpponent = ongoingGames.stream()
+                        .anyMatch(g -> g.game().opponent() instanceof GameEvent.Opponent.User u
+                                && u.id().equals(c.challenger().id()));
+
+                    if (alreadyPlayingSameOpponent) {
+                        System.out.println("Declinining challenge because already playing same opponent,\n%s".formatted(challenge));
+                        client.challenges().declineChallenge(challenge.id(), d -> d.later());
+                        continue;
+                    }
+
+                    if (gamesToStart.size() >= 7) {
+                        System.out.println("Declinining challenge because ongoing games,\n%s".formatted(challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.later());
                         continue;
                     }
@@ -110,13 +122,18 @@ class Main {
         executor.submit(() -> {
             while(true) {
                 try {
-                    var game = games.take();
+                    var game = gamesToStart.take();
 
                     String opponent = "<Opponent>";
                     if (game.game().opponent() instanceof GameEvent.Opponent.User u) {
                         opponent = u.username();
                     } else if (game.game().opponent() instanceof GameEvent.Opponent.AI ai) {
                         opponent = ai.username() + " - " + ai.ai();
+                    }
+                    if (ongoingGames.offer(game)) {
+                        System.out.println("Successfully added game %s against %s in queue".formatted(game.id(), opponent));
+                    } else {
+                        System.out.println("Failed to add game %s against %s in queue".formatted(game.id(), opponent));
                     }
                     var white = game.game().color() == Color.white
                         ? one.entry().username() : opponent;
@@ -173,6 +190,11 @@ class Main {
                                             System.out.println("No winner");
                                         } else {
                                             System.out.println("Winner: %s".formatted(state.winner()));
+                                        }
+                                        if (ongoingGames.remove(game)) {
+                                            System.out.println("Successfully removed ongoing game %s".formatted(game.id()));
+                                        } else {
+                                            System.out.println("Failed to remove game %s".formatted(game.id()));
                                         }
                                     } else {
                                         processMoves.accept(state.moves());
