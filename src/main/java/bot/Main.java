@@ -56,7 +56,10 @@ class Main {
 
                     connect.stream().forEach(event -> { switch(event.type()) {
                         case challenge -> challenges.add((ChallengeEvent) event);
-                        case gameStart -> gamesToStart.add((GameEvent) event);
+                        case gameStart -> {
+                            if (ongoingGames.stream().noneMatch(ongoing -> ongoing.id().equals(event.id())))
+                                gamesToStart.add((GameEvent) event);
+                        }
                         default -> {}
                     }});
 
