@@ -143,7 +143,7 @@ class Main {
                     var black = game.game().color() == Color.black
                         ? one.entry().username() : opponent;
 
-                    executor.submit(() -> {
+                    executor.submit(() -> { try {
                         System.out.println("Game:\n" + game);
 
                         Consumer<String> processMoves = moveList -> {
@@ -194,11 +194,6 @@ class Main {
                                         } else {
                                             System.out.println("Winner: %s".formatted(state.winner()));
                                         }
-                                        if (ongoingGames.remove(game)) {
-                                            System.out.println("Successfully removed ongoing game %s".formatted(game.id()));
-                                        } else {
-                                            System.out.println("Failed to remove game %s".formatted(game.id()));
-                                        }
                                     } else {
                                         processMoves.accept(state.moves());
                                     }
@@ -207,8 +202,21 @@ class Main {
                                 case opponentGone -> System.out.println("Gone:\n"+event);
                                 case chatLine -> System.out.println("Chat:\n"+event);
                             }});
+
                         System.out.println("GameEvent handler for %s finished".formatted(game.id()));
-                    });
+
+                        if (ongoingGames.remove(game)) {
+                            System.out.println("Successfully removed ongoing game %s".formatted(game.id()));
+                        } else {
+                            System.out.println("Failed to remove game %s".formatted(game.id()));
+                        }
+                    } catch (Exception e) {
+                        if (ongoingGames.remove(game)) {
+                            System.out.println("Successfully removed ongoing game %s after failure: %s".formatted(game.id(), e.getMessage()));
+                        } else {
+                            System.out.println("Failed to remove game %s after failure: %s".formatted(game.id(), e.getMessage()));
+                        }
+                    }});
                 } catch (Exception e) {
                     System.out.println("GameAcceptor: %s\n%s".formatted(e.getMessage(), Instant.now()));
                 }
