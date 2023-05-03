@@ -97,7 +97,7 @@ class Main {
                         continue;
                     }
 
-                    if (gamesToStart.size() >= 7) {
+                    if (ongoingGames.size() >= 7) {
                         System.out.println("Declinining challenge because ongoing games,\n%s".formatted(challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.later());
                         continue;
