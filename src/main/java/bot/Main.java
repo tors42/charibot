@@ -77,12 +77,12 @@ class Main {
                     System.out.println("Challenge from " + c.challenger());
 
                     if (c.rated()) {
-                        System.out.println("Declinining challenge because rated,\n%s".formatted(challenge));
+                        System.out.println("Declining challenge because rated,\n%s".formatted(challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.casual());
                         continue;
                     }
                     if (!c.variant().key().equals(GameVariant.standard)) {
-                        System.out.println("Declinining challenge because not standard,\n%s".formatted(challenge));
+                        System.out.println("Declining challenge because not standard,\n%s".formatted(challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.standard());
                         continue;
                     }
@@ -92,13 +92,13 @@ class Main {
                                 && u.id().equals(c.challenger().id()));
 
                     if (alreadyPlayingSameOpponent) {
-                        System.out.println("Declinining challenge because already playing same opponent,\n%s".formatted(challenge));
+                        System.out.println("Declining challenge because already playing same opponent,\n%s".formatted(challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.later());
                         continue;
                     }
 
                     if (ongoingGames.size() >= 7) {
-                        System.out.println("Declinining challenge because ongoing games,\n%s".formatted(challenge));
+                        System.out.println("Declining challenge because ongoing games,\n%s".formatted(challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.later());
                         continue;
                     }
