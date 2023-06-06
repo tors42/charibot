@@ -5,7 +5,7 @@ import chariot.model.*;
 import chariot.model.Enums.*;
 import chariot.model.Event.*;
 import chariot.model.Event.GameEvent;
-import chariot.model.GameEvent.*;
+import chariot.model.GameStateEvent.*;
 import chariot.util.Board;
 
 import java.time.Instant;
@@ -27,7 +27,7 @@ class Main {
         var client = Client.auth(token);
 
         var profile = client.account().profile();
-        if (! (profile instanceof Entry<User> one)) {
+        if (! (profile instanceof Entry<UserAuth> one)) {
             System.out.println("Failed to lookup account " + profile);
             return;
         }
@@ -75,24 +75,24 @@ class Main {
             while(true) {
                 try {
                     var challenge = challenges.take();
-                    Challenge c = challenge.challenge();
+                    ChallengeInfo c = challenge.challenge();
+                    var challenger = c.players().challengerOpt().orElseThrow();
 
-                    System.out.println("Challenge from " + c.challenger());
+                    System.out.println("Challenge from " + challenger.user().name());
 
-                    if (c.rated()) {
+                    if (c.gameType().rated()) {
                         System.out.println("Declining challenge because rated,\n%s".formatted(challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.casual());
                         continue;
                     }
-                    if (!c.variant().key().equals(GameVariant.standard)) {
+                    if ( ! c.gameType().variant().equals(VariantType.Variant.standard)) {
                         System.out.println("Declining challenge because not standard,\n%s".formatted(challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.standard());
                         continue;
                     }
 
                     boolean alreadyPlayingSameOpponent = ongoingGames.stream()
-                        .anyMatch(g -> g.game().opponent() instanceof GameEvent.Opponent.User u
-                                && u.id().equals(c.challenger().id()));
+                        .anyMatch(g -> challenger.user().id().equals(g.game().opponent().id()));
 
                     if (alreadyPlayingSameOpponent) {
                         System.out.println("Declining challenge because already playing same opponent,\n%s".formatted(challenge));
@@ -106,15 +106,16 @@ class Main {
                         continue;
                     }
 
-                    System.out.println("Accepting challenge from %s,\n%s".formatted(c.challenger().name(),  challenge));
+                    System.out.println("Accepting challenge from %s,\n%s".formatted(challenger.user().name(),  challenge));
                     client.challenges().acceptChallenge(challenge.id());
-                    client.bot().chat(challenge.id(), """
-                            Hello!
-                            I haven't existed for long,
-                            so I might contain some bugs...
-                            Let us hope things will go smooth.
-                            I wish you a good game!
-                            """);
+
+                    var message = challenge.isRematch()
+                        ? "Again!"
+                        : """
+                          Hi %s!
+                          I wish you a good game!
+                          """.formatted(challenger.user().name());
+                    client.bot().chat(challenge.id(), message);
                 } catch (Exception e) {
                     System.out.println("ChallengeAcceptor: %s\n%s".formatted(e.getMessage(), Instant.now()));
                 }
@@ -127,21 +128,17 @@ class Main {
                 try {
                     var game = gamesToStart.take();
 
-                    String opponent = "<Opponent>";
-                    if (game.game().opponent() instanceof GameEvent.Opponent.User u) {
-                        opponent = u.username();
-                    } else if (game.game().opponent() instanceof GameEvent.Opponent.AI ai) {
-                        opponent = ai.username() + " - " + ai.ai();
-                    }
+                    String opponent = game.game().opponent().name();
+
                     if (ongoingGames.offer(game)) {
                         System.out.println("Successfully added game %s against %s in queue".formatted(game.id(), opponent));
                     } else {
                         System.out.println("Failed to add game %s against %s in queue".formatted(game.id(), opponent));
                     }
                     var white = game.game().color() == Color.white
-                        ? one.entry().username() : opponent;
+                        ? one.entry().name() : opponent;
                     var black = game.game().color() == Color.black
-                        ? one.entry().username() : opponent;
+                        ? one.entry().name() : opponent;
 
                     executor.submit(() -> { try {
                         System.out.println("Game:\n" + game);
@@ -187,12 +184,12 @@ class Main {
                                         System.out.println("%s %s %s".formatted(board.toFEN(), board.gameState(), state.status()));
                                     }
 
-                                    if (state.status().ordinal() > Game.Status.started.ordinal()) {
+                                    if (state.status().ordinal() > Status.started.ordinal()) {
                                         client.bot().chat(game.id(), "Thanks for the game!");
-                                        if (state.winner() == null || state.winner().isBlank()) {
-                                            System.out.println("No winner");
+                                        if (state.winner() instanceof Some<Color> winner) {
+                                            System.out.println("Winner: %s".formatted(winner.value() == Color.white ? white : black));
                                         } else {
-                                            System.out.println("Winner: %s".formatted(state.winner()));
+                                            System.out.println("No winner. %s".formatted(state.status()));
                                         }
                                     } else {
                                         processMoves.accept(state.moves());
