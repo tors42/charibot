@@ -1,7 +1,9 @@
-# Work In Progress
+# charibot
 
 Testing Lichess BOT functionality,
 with a rudimentary bot application which makes random moves.
+
+Lichess profile - https://lichess.org/@/charibot
 
 # Build
 
