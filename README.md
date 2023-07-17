@@ -19,7 +19,7 @@ You need
 ```
 export BOT_TOKEN=lip_...
 
-java -jar target/charibot-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+target/maven-jlink/default/bin/bot
 ```
 
 When the program is running, the bot should show up as online at
