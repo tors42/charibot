@@ -32,6 +32,10 @@
                     <addOptions>
                         <addOption>--enable-preview</addOption>
                     </addOptions>
+                    <addModules>
+                        <addModule>jdk.jfr</addModule>
+                        <addModule>jdk.jcmd</addModule>
+                    </addModules>
                     <compress>2</compress>
                     <noHeaderFiles>true</noHeaderFiles>
                     <noManPages>true</noManPages>
