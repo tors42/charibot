@@ -29,9 +29,9 @@ class Main {
         if (! (initializeClientAndProfile() instanceof ClientAndProfile(var client, var profile))) return;
 
         // Prepare queues for ongoing games and incoming challenges.
-        var gamesToStart = new ArrayBlockingQueue<GameStartEvent>(64);
+        var gamesToStart = new ArrayBlockingQueue<GameInfo>(64);
+        var ongoingGames = new ArrayBlockingQueue<GameInfo>(64);
         var challenges   = new ArrayBlockingQueue<ChallengeCreatedEvent>(64);
-        var ongoingGames = new ArrayBlockingQueue<GameStartEvent>(64);
 
         // Listen for game start events and incoming challenges,
         // and just put them in the queues ("Producer")
@@ -51,10 +51,10 @@ class Main {
 
                     events.forEach(event -> { switch(event) {
                             case ChallengeCreatedEvent created -> challenges.add(created);
-                            case GameStartEvent start when
+                            case GameStartEvent(var game, _) when
                                 ongoingGames.stream()
-                                .map(GameStartEvent::id)
-                                .noneMatch(start.id()::equals) -> gamesToStart.add(start);
+                                .map(GameInfo::gameId)
+                                .noneMatch(game.gameId()::equals) -> gamesToStart.add(game);
                             case GameStopEvent _,
                                  GameStartEvent _,
                                  ChallengeCanceledEvent _,
@@ -89,7 +89,7 @@ class Main {
                     }
 
                     boolean alreadyPlayingSameOpponent = ongoingGames.stream()
-                        .anyMatch(g -> challenger.user().id().equals(g.game().opponent().id()));
+                        .anyMatch(game -> challenger.user().id().equals(game.opponent().id()));
 
                     if (alreadyPlayingSameOpponent) {
                         LOGGER.info(() -> STR."Declining simultaneous challenge from \{challenger.user().name()}: \{challenge}");
@@ -129,17 +129,17 @@ class Main {
                 try {
                     var game = gamesToStart.take();
 
-                    String fenAtGameStart = game.game().fen();
+                    String fenAtGameStart = game.fen();
 
-                    String opponent = game.game().opponent().name();
+                    String opponent = game.opponent().name();
 
                     if (ongoingGames.offer(game))
-                        LOGGER.fine(() -> STR."Successfully added game \{game.id()} against \{opponent} in queue");
+                        LOGGER.fine(() -> STR."Successfully added game \{game.gameId()} against \{opponent} in queue");
                     else
-                        LOGGER.fine(() -> STR."Failed to add game \{game.id()} against \{opponent} in queue");
+                        LOGGER.fine(() -> STR."Failed to add game \{game.gameId()} against \{opponent} in queue");
 
-                    var white = game.game().color() == Color.white ? profile.name() : opponent;
-                    var black = game.game().color() == Color.black ? profile.name() : opponent;
+                    var white = game.color() == Color.white ? profile.name() : opponent;
+                    var black = game.color() == Color.black ? profile.name() : opponent;
 
                     int startPly = Board.fromFEN(fenAtGameStart) instanceof Board.BoardData(_, var fen, _, _)
                         ? 2 * fen.move() + (fen.whoseTurn() == Board.Side.BLACK ? 1 : 0)
@@ -151,25 +151,25 @@ class Main {
                             var board = Board.fromFEN(fenAtGameStart);
                             if (! moves.isBlank()) board = board.play(moves);
 
-                            if (game.game().color() == Color.white
+                            if (game.color() == Color.white
                                 ? board.blackToMove()
                                 : board.whiteToMove()) return;
 
                             var validMoves = new ArrayList<>(board.validMoves());
                             Collections.shuffle(validMoves, new Random());
                             var result = validMoves.stream().map(m -> m.uci())
-                                .findFirst().map(uci -> client.bot().move(game.id(), uci))
+                                .findFirst().map(uci -> client.bot().move(game.gameId(), uci))
                                 .orElse(One.fail(-1, Err.from("no move")));
 
                             if (result instanceof Fail<?> fail) {
                                 LOGGER.warning(() -> STR."Play failed: \{fail} - resigning");
-                                client.bot().resign(game.id());
+                                client.bot().resign(game.gameId());
                             }
                         };
 
                         LOGGER.fine(() -> STR."Connecting to game: \{game}");
 
-                        client.bot().connectToGame(game.id()).stream()
+                        client.bot().connectToGame(game.gameId()).stream()
                             .forEach(event -> { switch(event) {
                                 case Full full -> {
                                     LOGGER.info(() -> STR."\{full}");
@@ -197,7 +197,7 @@ class Main {
                                     }
 
                                     if (state.status().ordinal() > Status.started.ordinal()) {
-                                        client.bot().chat(game.id(), "Thanks for the game!");
+                                        client.bot().chat(game.gameId(), "Thanks for the game!");
                                         if (state.winner() instanceof Some(var winner)) {
                                             LOGGER.info(() -> STR."Winner: \{winner == Color.white ? white : black}");
                                         } else {
@@ -212,18 +212,18 @@ class Main {
                                 case Chat(var name, var text, var room) -> LOGGER.info(() -> STR."Chat: [\{name}][\{room}]: \{text}");
                             }});
 
-                        LOGGER.fine(() -> STR."GameEvent handler for \{game.id()} finished");
+                        LOGGER.fine(() -> STR."GameEvent handler for \{game.gameId()} finished");
 
                         if (ongoingGames.remove(game)) {
-                            LOGGER.fine(() -> STR."Successfully removed ongoing game \{game.id()}");
+                            LOGGER.fine(() -> STR."Successfully removed ongoing game \{game.gameId()}");
                         } else {
-                            LOGGER.fine(() -> STR."Failed to remove game \{game.id()}");
+                            LOGGER.fine(() -> STR."Failed to remove game \{game.gameId()}");
                         }
                     } catch (Exception e) {
                         if (ongoingGames.remove(game)) {
-                            LOGGER.log(Level.WARNING, e, () -> STR."Successfully removed ongoing game \{game.id()} after failure: \{e.getMessage()}");
+                            LOGGER.log(Level.WARNING, e, () -> STR."Successfully removed ongoing game \{game.gameId()} after failure: \{e.getMessage()}");
                         } else {
-                            LOGGER.log(Level.WARNING, e, () -> STR."Failed to remove game \{game.id()} after failure: \{e.getMessage()}");
+                            LOGGER.log(Level.WARNING, e, () -> STR."Failed to remove game \{game.gameId()} after failure: \{e.getMessage()}");
                         }
                     }});
                 } catch (Exception e) {
