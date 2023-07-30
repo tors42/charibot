@@ -1,0 +1,90 @@
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number'
+        required: true
+        type: string
+
+jobs:
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download OpenJDK 21
+        run: curl -L -o ${{ runner.temp }}/java_package.tar.gz https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_linux-x64_bin.tar.gz
+
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'jdkfile'
+          jdkFile: ${{ runner.temp }}/java_package.tar.gz
+          java-version: '21'
+          architecture: x64
+
+      - name: version
+        run: mvn -B versions:set -DnewVersion="${{ inputs.version }}"
+
+      - name: build
+        run: mvn --batch-mode clean verify
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: linux
+          path: target/*.zip
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download OpenJDK 21
+        run: curl -L -o ${{ runner.temp }}/java_package.tar.gz https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_macos-x64_bin.tar.gz
+
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'jdkfile'
+          jdkFile: ${{ runner.temp }}/java_package.tar.gz
+          java-version: '21'
+          architecture: x64
+
+      - name: version
+        run: mvn -B versions:set -DnewVersion="${{ inputs.version }}"
+
+      - name: build
+        run: mvn clean verify
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: macos
+          path: target/*.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download OpenJDK 21
+        run: curl -L -o ${{ runner.temp }}/java_package.zip https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_windows-x64_bin.zip
+
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'jdkfile'
+          jdkFile: ${{ runner.temp }}/java_package.zip
+          java-version: '21'
+          architecture: x64
+
+      - name: version
+        run: mvn -B versions:set -DnewVersion="${{ inputs.version }}"
+
+      - name: build
+        run: mvn clean verify
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: windows
+          path: target/*.zip
+
