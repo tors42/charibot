@@ -14,8 +14,9 @@ https://lichess.org/@/charibot
 
 # Releases
 
-TODO, there are no pre-built releases yet - so you would need to build the
-application yourself for now (see Build section)
+Pre-built releases (for `windows-x64`, `macos-x64` and `linux-x64`) are available at https://github.com/tors42/charibot/releases
+
+They are built with the `jlink` tool - so no Java installation is needed to run the application. Inside the `windows.zip`, `macos.zip` and `linux.zip` there's a `charibot-<version>.zip` which can be unpacked into a new directory. And inside that directory the application can be launched from a command-line terminal window - `<directory>/bin/bot`
 
 # Run
 
