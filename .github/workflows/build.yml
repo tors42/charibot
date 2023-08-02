@@ -10,81 +10,59 @@ on:
 
 jobs:
 
-  linux:
-    runs-on: ubuntu-latest
+  jlink:
+
+    env:
+      LINUX_JDK_URL:   'https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_linux-x64_bin.tar.gz'
+      WINDOWS_JDK_URL: 'https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_windows-x64_bin.zip'
+      MACOS_JDK_URL:   'https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_macos-x64_bin.tar.gz'
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v3
 
-      - name: Download OpenJDK 21
-        run: curl -L -o ${{ runner.temp }}/java_package.tar.gz https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_linux-x64_bin.tar.gz
+      - name: Download JDK Linux
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: curl -L -o ${{ runner.temp }}/jdk.tar.gz ${{ env.LINUX_JDK_URL }}
+
+      - name: Download JDK Windows
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: curl -L -o ${{ runner.temp }}/jdk.zip ${{ env.WINDOWS_JDK_URL }}
+
+      - name: Download JDK MacOS
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: curl -L -o ${{ runner.temp }}/jdk.tar.gz ${{ env.MACOS_JDK_URL }}
 
       - uses: actions/setup-java@v3
+        if: ${{ matrix.os == 'windows-latest' }}
         with:
           distribution: 'jdkfile'
-          jdkFile: ${{ runner.temp }}/java_package.tar.gz
+          jdkFile: ${{ runner.temp }}/jdk.zip
           java-version: '21'
           architecture: x64
+
+      - uses: actions/setup-java@v3
+        if: ${{ matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest' }}
+        with:
+          distribution: 'jdkfile'
+          jdkFile: ${{ runner.temp }}/jdk.tar.gz
+          java-version: '21'
+          architecture: x64
+
 
       - name: version
         run: mvn -B versions:set -DnewVersion="${{ inputs.version }}"
 
       - name: build
-        run: mvn --batch-mode clean verify
+        run: mvn -B clean verify
 
       - uses: actions/upload-artifact@v3
         with:
-          name: linux
-          path: target/*.zip
-
-  macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Download OpenJDK 21
-        run: curl -L -o ${{ runner.temp }}/java_package.tar.gz https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_macos-x64_bin.tar.gz
-
-      - uses: actions/setup-java@v3
-        with:
-          distribution: 'jdkfile'
-          jdkFile: ${{ runner.temp }}/java_package.tar.gz
-          java-version: '21'
-          architecture: x64
-
-      - name: version
-        run: mvn -B versions:set -DnewVersion="${{ inputs.version }}"
-
-      - name: build
-        run: mvn clean verify
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: macos
-          path: target/*.zip
-
-  windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Download OpenJDK 21
-        run: curl -L -o ${{ runner.temp }}/java_package.zip https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_windows-x64_bin.zip
-
-      - uses: actions/setup-java@v3
-        with:
-          distribution: 'jdkfile'
-          jdkFile: ${{ runner.temp }}/java_package.zip
-          java-version: '21'
-          architecture: x64
-
-      - name: version
-        run: mvn -B versions:set -DnewVersion="${{ inputs.version }}"
-
-      - name: build
-        run: mvn clean verify
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: windows
+          name: ${{ matrix.os }}
           path: target/*.zip
 
