@@ -9,13 +9,11 @@ on:
         type: string
 
 jobs:
-
   jlink:
-
     env:
-      LINUX_JDK_URL:   'https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_linux-x64_bin.tar.gz'
-      WINDOWS_JDK_URL: 'https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_windows-x64_bin.zip'
-      MACOS_JDK_URL:   'https://download.java.net/java/early_access/jdk21/33/GPL/openjdk-21-ea+33_macos-x64_bin.tar.gz'
+      LINUX_JDK_URL:   'https://download.java.net/java/early_access/jdk21/34/GPL/openjdk-21-ea+34_linux-x64_bin.tar.gz'
+      MACOS_JDK_URL:   'https://download.java.net/java/early_access/jdk21/34/GPL/openjdk-21-ea+34_macos-x64_bin.tar.gz'
+      WINDOWS_JDK_URL: 'https://download.java.net/java/early_access/jdk21/34/GPL/openjdk-21-ea+34_windows-x64_bin.zip'
 
     strategy:
       matrix:
@@ -30,21 +28,13 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: curl -L -o ${{ runner.temp }}/jdk.tar.gz ${{ env.LINUX_JDK_URL }}
 
-      - name: Download JDK Windows
-        if: ${{ matrix.os == 'windows-latest' }}
-        run: curl -L -o ${{ runner.temp }}/jdk.zip ${{ env.WINDOWS_JDK_URL }}
-
       - name: Download JDK MacOS
         if: ${{ matrix.os == 'macos-latest' }}
         run: curl -L -o ${{ runner.temp }}/jdk.tar.gz ${{ env.MACOS_JDK_URL }}
 
-      - uses: actions/setup-java@v3
+      - name: Download JDK Windows
         if: ${{ matrix.os == 'windows-latest' }}
-        with:
-          distribution: 'jdkfile'
-          jdkFile: ${{ runner.temp }}/jdk.zip
-          java-version: '21'
-          architecture: x64
+        run: curl -L -o ${{ runner.temp }}/jdk.zip ${{ env.WINDOWS_JDK_URL }}
 
       - uses: actions/setup-java@v3
         if: ${{ matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest' }}
@@ -54,6 +44,13 @@ jobs:
           java-version: '21'
           architecture: x64
 
+      - uses: actions/setup-java@v3
+        if: ${{ matrix.os == 'windows-latest' }}
+        with:
+          distribution: 'jdkfile'
+          jdkFile: ${{ runner.temp }}/jdk.zip
+          java-version: '21'
+          architecture: x64
 
       - name: version
         run: mvn -B versions:set -DnewVersion="${{ inputs.version }}"
