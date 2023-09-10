@@ -69,11 +69,3 @@ The bot application will be packaged in `target/charibot-0.0.1-SNAPSHOT.zip`
 Note, the built bot application is a self-contained runtime so it is possible
 to run it without having Java installed.
 
-Note 2, the bot application is simple so it is possible to run it without
-building it - but then one needs Java 21 (or later) on the machine where
-running it, and also one would need to manually download the
-[chariot](https://repo1.maven.org/maven2/io/github/tors42/chariot/0.0.71/chariot-0.0.71.jar)
-library, and then run the application like this:
-
-    java --source 21 --enable-preview --class-path chariot-0.0.71.jar src/main/java/bot/Main.java
-
