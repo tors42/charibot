@@ -78,31 +78,40 @@ record ClientAndProfile(ClientAuth client, UserAuth profile) {
     }
 
     static UserAuth initializeProfile(ClientAuth client) {
+        // Check the Lichess account
         var profileResult = client.account().profile();
         if (! (profileResult instanceof Entry(var profile))) {
             LOGGER.warning(() -> STR."Failed to lookup bot account profile: \{profileResult}");
             throw new RuntimeException(STR."Failed to lookup bot account profile: \{profileResult}");
         }
 
-        if (! (profile.title() instanceof Some(var title) && "BOT".equals(title))) {
-            LOGGER.warning(() -> STR."\{profile.name()} is not a BOT account");
-            if (profile.accountStats().all() > 0) {
-                LOGGER.warning(() -> "Account has played games - won't be possible to upgrade to BOT account");
-                throw new RuntimeException("Not a BOT account (and not upgradeable because there are played games)");
-            } else {
-                String choice = System.console().readLine(STR."Transform account (\{profile.name()}) to BOT account? (Warning, can't be undone) [N/y]: ");
-                if (choice != null && choice.toLowerCase(Locale.ROOT).equals("y")) {
-                    if (client.bot().upgradeToBotAccount() instanceof Fail<?> fail) {
-                        LOGGER.warning(() -> STR."Failed to upgrade account to BOT account: \{fail}");
-                        throw new RuntimeException(STR."Failed to upgrade account to BOT account: \{fail}");
-                    }
-                    LOGGER.info(() -> "Upgraded account to BOT account");
-                } else {
-                    LOGGER.warning(() -> "Did not want to upgrade to BOT account");
-                    throw new RuntimeException("Did not want to upgrade to BOT account");
-                }
-            }
+        // Lichess account is a BOT account, we're done - return profile
+        if (profile.title() instanceof Some(var title) && "BOT".equals(title)) return profile;
+
+        // It wasn't a BOT account...
+        LOGGER.warning(() -> STR."\{profile.name()} is not a BOT account");
+
+        // Check if eligible to upgrade to BOT account
+        if (profile.accountStats().all() > 0) {
+            LOGGER.warning(() -> "Account has played games - won't be possible to upgrade to BOT account");
+            throw new RuntimeException("Not a BOT account (and not upgradeable because there are played games)");
         }
+
+        // Ask if user wants to upgrade to BOT account
+        if (! (System.console().readLine(STR."Transform account (\{profile.name()}) to BOT account? (Warning, can't be undone) [N/y]: ")
+                instanceof String choice && choice.toLowerCase(Locale.ROOT).equals("y"))) {
+            LOGGER.warning(() -> "Did not want to upgrade to BOT account");
+            throw new RuntimeException("Did not want to upgrade to BOT account");
+        }
+
+        // User wanted to upgrade to BOT account - attempt to do so
+        if (client.bot().upgradeToBotAccount() instanceof Fail<?> fail) {
+            LOGGER.warning(() -> STR."Failed to upgrade account to BOT account: \{fail}");
+            throw new RuntimeException(STR."Failed to upgrade account to BOT account: \{fail}");
+        }
+
+        // Tada!
+        LOGGER.info(() -> "Upgraded account to BOT account");
         return profile;
     }
 }
