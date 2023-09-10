@@ -58,8 +58,8 @@ default `localhost`... (Example of an application which does that can be found
 
 # Build
 
-To build, one needs [Maven](https://maven.apache.org) and [Java 21 (Early
-Access Builds)](https://jdk.java.net/21)
+To build, one needs [Maven](https://maven.apache.org) and [Java 21 (Release Candidate
+Builds)](https://jdk.java.net/21)
 
     $ mvn clean verify
 
