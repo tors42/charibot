@@ -1,14 +1,13 @@
 package bot;
 
 import chariot.*;
-import chariot.Client.*;
 import chariot.model.*;
 import chariot.model.Enums.*;
 import chariot.model.Event.*;
 import chariot.model.GameStateEvent.*;
 import chariot.util.Board;
+import chariot.util.Board.GameState;
 
-import java.net.URI;
 import java.time.*;
 import java.util.*;
 import java.util.stream.*;
@@ -16,17 +15,14 @@ import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.logging.*;
 import java.util.logging.Level;
-import java.util.prefs.Preferences;
 
 class Main {
-
-    record ClientAndProfile(ClientAuth client, UserAuth profile) {}
 
     private static Logger LOGGER = Logger.getLogger("bot");
 
     public static void main(String[] args) {
 
-        if (! (initializeClientAndProfile() instanceof ClientAndProfile(var client, var profile))) return;
+        if (! (ClientAndProfile.initialize() instanceof ClientAndProfile(var client, var profile))) return;
 
         // Prepare queues for ongoing games and incoming challenges.
         var gamesToStart = new ArrayBlockingQueue<GameInfo>(64);
@@ -82,7 +78,8 @@ class Main {
                         continue;
                     }
                     if (c.gameType().variant() != VariantType.Variant.standard
-                        && ! (c.gameType().variant() instanceof VariantType.Chess960)) {
+                        && ! (c.gameType().variant() instanceof VariantType.Chess960)
+                        && ! (c.gameType().variant() instanceof VariantType.FromPosition)) {
                         LOGGER.info(() -> STR."Declining non-standard challenge from \{challenger.user().name()}: \{challenge}");
                         client.challenges().declineChallenge(challenge.id(), d -> d.standard());
                         continue;
@@ -133,10 +130,7 @@ class Main {
 
                     String opponent = game.opponent().name();
 
-                    if (ongoingGames.offer(game))
-                        LOGGER.fine(() -> STR."Successfully added game \{game.gameId()} against \{opponent} in queue");
-                    else
-                        LOGGER.fine(() -> STR."Failed to add game \{game.gameId()} against \{opponent} in queue");
+                    ongoingGames.offer(game);
 
                     var white = game.color() == Color.white ? profile.name() : opponent;
                     var black = game.color() == Color.black ? profile.name() : opponent;
@@ -148,18 +142,26 @@ class Main {
                     executor.submit(() -> { try {
 
                         Consumer<String> processMoves = moves -> {
-                            var board = Board.fromFEN(fenAtGameStart);
-                            if (! moves.isBlank()) board = board.play(moves);
+                            var board = moves.isBlank()
+                                ? Board.fromFEN(fenAtGameStart)
+                                : Board.fromFEN(fenAtGameStart).play(moves);
 
                             if (game.color() == Color.white
                                 ? board.blackToMove()
                                 : board.whiteToMove()) return;
 
                             var validMoves = new ArrayList<>(board.validMoves());
+
                             Collections.shuffle(validMoves, new Random());
                             var result = validMoves.stream().map(m -> m.uci())
-                                .findFirst().map(uci -> client.bot().move(game.gameId(), uci))
-                                .orElse(One.fail(-1, Err.from("no move")));
+                                .findFirst().map(uci -> {
+                                    //var updatedBoard = board.play(uci);
+                                    //boolean draw = updatedBoard.gameState() == GameState.draw_by_threefold_repetition
+                                    //    || updatedBoard.gameState() == GameState.draw_by_fifty_move_rule;
+                                    //return client.bot().move(game.gameId(), uci, draw);
+                                    return client.bot().move(game.gameId(), uci);
+                                })
+                            .orElse(One.fail(-1, Err.from("no move")));
 
                             if (result instanceof Fail<?> fail) {
                                 LOGGER.warning(() -> STR."Play failed: \{fail} - resigning");
@@ -214,17 +216,10 @@ class Main {
 
                         LOGGER.fine(() -> STR."GameEvent handler for \{game.gameId()} finished");
 
-                        if (ongoingGames.remove(game)) {
-                            LOGGER.fine(() -> STR."Successfully removed ongoing game \{game.gameId()}");
-                        } else {
-                            LOGGER.fine(() -> STR."Failed to remove game \{game.gameId()}");
-                        }
+                        ongoingGames.remove(game);
+
                     } catch (Exception e) {
-                        if (ongoingGames.remove(game)) {
-                            LOGGER.log(Level.WARNING, e, () -> STR."Successfully removed ongoing game \{game.gameId()} after failure: \{e.getMessage()}");
-                        } else {
-                            LOGGER.log(Level.WARNING, e, () -> STR."Failed to remove game \{game.gameId()} after failure: \{e.getMessage()}");
-                        }
+                        ongoingGames.remove(game);
                     }});
                 } catch (Exception e) {
                     LOGGER.log(Level.WARNING, e, () -> STR."GameAcceptor: \{e.getMessage()}\n\{Instant.now()}");
@@ -232,98 +227,4 @@ class Main {
             }
         });
     }
-
-    static ClientAndProfile initializeClientAndProfile() {
-
-        var client  = initializeClient();
-        var profile = initializeProfile(client);
-
-        return new ClientAndProfile(client, profile);
-    }
-
-    /**
-     * Initialize client with a OAuth token with scope bot:play,
-     * either provided via environment variable BOT_TOKEN (create at https://lichess.org/account/oauth/token/create),
-     * or using OAuth PKCE flow and storing granted token locally with Java Preferences API,
-     * i.e at first run the user must interactively grant access by navigating with a Web Browser
-     * to the Lichess grant page and authorizing with the Bot Account,
-     * and consecutive runs the now already stored token will be used automatically.
-     */
-    static ClientAuth initializeClient() {
-        var prefs = Preferences.userRoot().node(System.getProperty("prefs", "charibot"));
-
-        URI lichessApi = URI.create(System.getenv("LICHESS_API") instanceof String api ? api : "https://lichess.org");
-
-        if (System.getenv("BOT_TOKEN") instanceof String token) { // scope bot:play
-            var client = Client.auth(conf -> conf.api(lichessApi), token);
-            if (client.scopes().contains(Client.Scope.bot_play)) {
-                LOGGER.info(() -> STR."Storing and using provided token (\{prefs})");
-                client.store(prefs);
-                return client;
-            }
-            LOGGER.info("Provided token is missing bot:play scope");
-            throw new RuntimeException("BOT_TOKEN is missing scope bot:play");
-        }
-
-        var client = Client.load(prefs);
-
-        if (client instanceof ClientAuth auth
-            && auth.scopes().contains(Client.Scope.bot_play)) {
-            LOGGER.info(() -> STR."Using stored token (\{prefs})");
-            return auth;
-        }
-
-        var authResult = Client.auth(
-            conf -> conf.api(lichessApi),
-            uri -> System.out.println(STR."""
-
-                Visit the following URL and choose to grant access to this application or not:
-
-                \{uri}
-
-                Tip, open URL in "incognito"/private browser to log in with bot account
-                to avoid logging out with normal account.
-                """),
-            pkce -> pkce.scope(Client.Scope.bot_play));
-
-        if (! (authResult instanceof AuthOk(var auth))) {
-            LOGGER.warning(() -> STR."OAuth PKCE flow failed: \{authResult}");
-            throw new RuntimeException(authResult.toString());
-        }
-
-        LOGGER.info(() -> STR."OAuth PKCE flow succeeded - storing and using token (\{prefs})");
-        auth.store(prefs);
-
-        return auth;
-    }
-
-    static UserAuth initializeProfile(ClientAuth client) {
-        var profileResult = client.account().profile();
-        if (! (profileResult instanceof Entry(var profile))) {
-            LOGGER.warning(() -> STR."Failed to lookup bot account profile: \{profileResult}");
-            throw new RuntimeException(STR."Failed to lookup bot account profile: \{profileResult}");
-        }
-
-        if (! (profile.title() instanceof Some(var title) && "BOT".equals(title))) {
-            LOGGER.warning(() -> STR."\{profile.name()} is not a BOT account");
-            if (profile.accountStats().all() > 0) {
-                LOGGER.warning(() -> "Account has played games - won't be possible to upgrade to BOT account");
-                throw new RuntimeException("Not a BOT account (and not upgradeable because there are played games)");
-            } else {
-                String choice = System.console().readLine(STR."Transform account (\{profile.name()}) to BOT account? (Warning, can't be undone) [N/y]: ");
-                if (choice != null && choice.toLowerCase(Locale.ROOT).equals("y")) {
-                    if (client.bot().upgradeToBotAccount() instanceof Fail<?> fail) {
-                        LOGGER.warning(() -> STR."Failed to upgrade account to BOT account: \{fail}");
-                        throw new RuntimeException(STR."Failed to upgrade account to BOT account: \{fail}");
-                    }
-                    LOGGER.info(() -> "Upgraded account to BOT account");
-                } else {
-                    LOGGER.warning(() -> "Did not want to upgrade to BOT account");
-                    throw new RuntimeException("Did not want to upgrade to BOT account");
-                }
-            }
-        }
-        return profile;
-    }
-
 }
