@@ -1,16 +1,13 @@
 package bot;
 
-import chariot.*;
 import chariot.model.*;
 import chariot.model.Enums.*;
 import chariot.model.Event.*;
 import chariot.model.GameStateEvent.*;
 import chariot.util.Board;
-import chariot.util.Board.GameState;
 
 import java.time.*;
 import java.util.*;
-import java.util.stream.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.logging.*;
@@ -111,7 +108,7 @@ class Main {
                           I wish you a good game!
                           """;
                      executor.submit(() -> {
-                         try { Thread.sleep(Duration.ofSeconds(1));} catch (InterruptedException ie) {}
+                         try { Thread.sleep(Duration.ofSeconds(1));} catch (InterruptedException _) {}
                          client.bot().chat(challenge.id(), greeting);
                      });
                 } catch (Exception e) {
