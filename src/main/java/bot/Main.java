@@ -9,6 +9,7 @@ import chariot.util.Board;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
 import java.util.function.Consumer;
 import java.util.logging.*;
 import java.util.logging.Level;
@@ -17,18 +18,22 @@ class Main {
 
     private static Logger LOGGER = Logger.getLogger("bot");
 
+    // Prepare queues for ongoing games and incoming challenges.
+    BlockingQueue<GameInfo>              gamesToStart = new ArrayBlockingQueue<>(64);
+    BlockingQueue<GameInfo>              ongoingGames = new ArrayBlockingQueue<>(64);
+    BlockingQueue<ChallengeCreatedEvent> challenges   = new ArrayBlockingQueue<>(64);
+    Set<String> waitingToAcceptOppId = Collections.synchronizedSet(new HashSet<>());
+
+    ExecutorService executor = Executors.newCachedThreadPool();
+
     public static void main(String[] args) {
+        new Main().run();
+    }
+
+    void run() {
 
         if (! (ClientAndProfile.initialize() instanceof ClientAndProfile(var client, var profile))) return;
 
-        // Prepare queues for ongoing games and incoming challenges.
-        var gamesToStart = new ArrayBlockingQueue<GameInfo>(64);
-        var ongoingGames = new ArrayBlockingQueue<GameInfo>(64);
-        var challenges   = new ArrayBlockingQueue<ChallengeCreatedEvent>(64);
-
-        // Listen for game start events and incoming challenges,
-        // and just put them in the queues ("Producer")
-        var executor = Executors.newCachedThreadPool();
         executor.submit(() -> {
             while(true) {
                 try {
@@ -42,6 +47,8 @@ class Main {
                         continue;
                     }
 
+                    // Listen for game start events and incoming challenges,
+                    // and just put them in the queues ("Producer")
                     events.forEach(event -> { switch(event) {
                             case ChallengeCreatedEvent created -> challenges.add(created);
                             case GameStartEvent(var game, _) when
@@ -74,6 +81,7 @@ class Main {
                         client.challenges().declineChallenge(challenge.id(), d -> d.casual());
                         continue;
                     }
+
                     if (c.gameType().variant() != VariantType.Variant.standard
                         && ! (c.gameType().variant() instanceof VariantType.Chess960)
                         && ! (c.gameType().variant() instanceof VariantType.FromPosition)) {
@@ -82,22 +90,29 @@ class Main {
                         continue;
                     }
 
-                    boolean alreadyPlayingSameOpponent = ongoingGames.stream()
-                        .anyMatch(game -> challenger.user().id().equals(game.opponent().id()));
-
-                    if (alreadyPlayingSameOpponent) {
-                        LOGGER.info(() -> STR."Declining simultaneous challenge from \{challenger.user().name()}: \{challenge}");
+                    boolean alreadyAcceptedSameOpponent = waitingToAcceptOppId.contains(challenger.user().id());
+                    if (alreadyAcceptedSameOpponent) {
+                        LOGGER.info(() -> STR."Declining challenge from \{challenger.user().name()} - already challenged: \{challenge}");
                         client.challenges().declineChallenge(challenge.id(), d -> d.later());
                         continue;
                     }
 
-                    if (ongoingGames.size() >= 7) {
+                    boolean alreadyPlayingSameOpponent = ongoingGames.stream()
+                            .anyMatch(game -> challenger.user().id().equals(game.opponent().id()));
+                    if (alreadyPlayingSameOpponent) {
+                        LOGGER.info(() -> STR."Declining challenge from \{challenger.user().name()} - already playing: \{challenge}");
+                        client.challenges().declineChallenge(challenge.id(), d -> d.later());
+                        continue;
+                    }
+
+                    if (ongoingGames.size() >= 14) {
                         LOGGER.info(() -> STR."Declining too many games from \{challenger.user().name()}: \{challenge}");
                         client.challenges().declineChallenge(challenge.id(), d -> d.later());
                         continue;
                     }
 
                     LOGGER.info(() -> STR."Accepting from \{challenger.user().name()}: \{challenge}");
+                    waitingToAcceptOppId.add(challenger.user().id());
 
                     client.challenges().acceptChallenge(challenge.id());
 
@@ -122,22 +137,18 @@ class Main {
             while(true) {
                 try {
                     var game = gamesToStart.take();
+                    ongoingGames.offer(game);
+                    waitingToAcceptOppId.remove(game.opponent().id());
 
                     String fenAtGameStart = game.fen();
-
                     String opponent = game.opponent().name();
-
-                    ongoingGames.offer(game);
 
                     var white = game.color() == Color.white ? profile.name() : opponent;
                     var black = game.color() == Color.black ? profile.name() : opponent;
 
-                    int startPly = Board.fromFEN(fenAtGameStart) instanceof Board.BoardData(_, var fen, _, _)
-                        ? 2 * fen.move() + (fen.whoseTurn() == Board.Side.BLACK ? 1 : 0)
-                        : 0;
-
                     executor.submit(() -> { try {
 
+                        AtomicBoolean drawOffered = new AtomicBoolean();
                         Consumer<String> processMoves = moves -> {
                             var board = moves.isBlank()
                                 ? Board.fromFEN(fenAtGameStart)
@@ -146,6 +157,16 @@ class Main {
                             if (game.color() == Color.white
                                 ? board.blackToMove()
                                 : board.whiteToMove()) return;
+
+                            if (drawOffered.get()) {
+                                client.bot().chat(game.gameId(), "Sure!");
+                                LOGGER.info(() -> "Accepting Draw");
+                                if (client.bot().move(game.gameId(), "a1a1", true) instanceof Fail(int status, var err)) {
+                                    LOGGER.warning(() -> STR."Accepting Draw Offer Failed: \{status} - \{err}");
+                                    client.bot().resign(game.gameId());
+                                }
+                                return;
+                            }
 
                             var validMoves = new ArrayList<>(board.validMoves());
 
@@ -168,16 +189,25 @@ class Main {
 
                         LOGGER.fine(() -> STR."Connecting to game: \{game}");
 
+                        final AtomicInteger movesPlayedSinceStart = new AtomicInteger();
+
                         client.bot().connectToGame(game.gameId()).stream()
                             .forEach(event -> { switch(event) {
                                 case Full full -> {
-                                    LOGGER.info(() -> STR."\{full}");
+                                    LOGGER.info(() -> STR."FULL: \{full}");
+                                    movesPlayedSinceStart.set(full.state().moveList().size());
                                     processMoves.accept("");
                                 }
 
                                 case State state -> {
+                                    if (state.drawOffer() instanceof Some(var color)) {
+                                        if (drawOffered.compareAndSet(false, true)) {
+                                            client.bot().chat(game.gameId(), "Hmm...");
+                                        }
+                                    }
+
                                     var moveList = state.moveList();
-                                    moveList = moveList.subList(startPly-2, moveList.size());
+                                    moveList = moveList.subList(movesPlayedSinceStart.get(), moveList.size());
                                     int moves = moveList.size();
                                     if (moves > 0) {
                                         var board = Board.fromFEN(fenAtGameStart);
