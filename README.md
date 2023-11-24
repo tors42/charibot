@@ -58,7 +58,7 @@ default `localhost`... (Example of an application which does that can be found
 
 # Build
 
-To build, one needs [Maven](https://maven.apache.org) and [Java 21](https://jdk.java.net/21)
+To build, one needs [Maven](https://maven.apache.org) and at least [Java 21](https://jdk.java.net/)
 
     $ mvn clean verify
 
