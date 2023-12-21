@@ -23,6 +23,7 @@ class Main {
     BlockingQueue<GameInfo>              ongoingGames = new ArrayBlockingQueue<>(64);
     BlockingQueue<ChallengeCreatedEvent> challenges   = new ArrayBlockingQueue<>(64);
     Set<String> waitingToAcceptOppId = Collections.synchronizedSet(new HashSet<>());
+    Set<String> handledChallenges = Collections.synchronizedSet(new HashSet<>());
 
     ExecutorService executor = Executors.newCachedThreadPool();
 
@@ -74,6 +75,13 @@ class Main {
                 try {
                     var challenge = challenges.take();
                     ChallengeInfo c = challenge.challenge();
+
+                    if (handledChallenges.contains(challenge.id())) {
+                        LOGGER.warning(() -> STR."Ignoring already handled challenge: \{challenge.id()} - https://github.com/lichess-org/lila/issues/14093");
+                        continue;
+                    }
+
+
                     var challenger = c.players().challengerOpt().orElseThrow();
 
                     if (c.gameType().rated()) {
@@ -111,10 +119,20 @@ class Main {
                         continue;
                     }
 
-                    LOGGER.info(() -> STR."Accepting from \{challenger.user().name()}: \{challenge}");
-                    waitingToAcceptOppId.add(challenger.user().id());
 
-                    client.challenges().acceptChallenge(challenge.id());
+                    waitingToAcceptOppId.add(challenger.user().id());
+                    handledChallenges.add(challenge.id());
+
+                    var acceptResult = client.challenges().acceptChallenge(challenge.id());
+
+                    if (acceptResult instanceof Fail<?> f) {
+                        waitingToAcceptOppId.remove(challenger.user().id());
+                        handledChallenges.remove(challenge.id());
+                        LOGGER.warning(() -> STR."Failed (\{f}) to accept \{challenge}!");
+                        continue;
+                    } else {
+                        LOGGER.info(() -> STR."Accepted from \{challenger.user().name()}: \{challenge}");
+                    }
 
                     var greeting = challenge.isRematch()
                         ? "Again!"
@@ -148,7 +166,6 @@ class Main {
 
                     executor.submit(() -> { try {
 
-                        AtomicBoolean drawOffered = new AtomicBoolean();
                         Consumer<String> processMoves = moves -> {
                             var board = moves.isBlank()
                                 ? Board.fromFEN(fenAtGameStart)
@@ -158,16 +175,6 @@ class Main {
                                 ? board.blackToMove()
                                 : board.whiteToMove()) return;
 
-                            if (drawOffered.get()) {
-                                client.bot().chat(game.gameId(), "Sure!");
-                                LOGGER.info(() -> "Accepting Draw");
-                                if (client.bot().move(game.gameId(), "a1a1", true) instanceof Fail(int status, var err)) {
-                                    LOGGER.warning(() -> STR."Accepting Draw Offer Failed: \{status} - \{err}");
-                                    client.bot().resign(game.gameId());
-                                }
-                                return;
-                            }
-
                             var validMoves = new ArrayList<>(board.validMoves());
 
                             Collections.shuffle(validMoves, new Random());
@@ -176,7 +183,7 @@ class Main {
                                     //var updatedBoard = board.play(uci);
                                     //boolean draw = updatedBoard.gameState() == GameState.draw_by_threefold_repetition
                                     //    || updatedBoard.gameState() == GameState.draw_by_fifty_move_rule;
-                                    //return client.bot().move(game.gameId(), uci, draw);
+                                    //return client.bot().handleDrawOffer(game.gameId(), true);
                                     return client.bot().move(game.gameId(), uci);
                                 })
                             .orElse(One.fail(-1, Err.from("no move")));
@@ -200,10 +207,20 @@ class Main {
                                 }
 
                                 case State state -> {
-                                    if (state.drawOffer() instanceof Some(var color)) {
-                                        if (drawOffered.compareAndSet(false, true)) {
-                                            client.bot().chat(game.gameId(), "Hmm...");
+                                    if (state.status().ordinal() > Status.started.ordinal()) {
+                                        client.bot().chat(game.gameId(), "Thanks for the game!");
+                                        if (state.winner() instanceof Some(var winner)) {
+                                            LOGGER.info(() -> STR."Winner: \{winner == Color.white ? white : black}");
+                                        } else {
+                                            LOGGER.info(() -> STR."No winner: \{state.status()}");
                                         }
+                                        break;
+                                    }
+
+                                    if (state.drawOffer() instanceof Some(var color)
+                                        && color != game.color()) {
+                                        client.bot().handleDrawOffer(game.gameId(), true);
+                                        break;
                                     }
 
                                     var moveList = state.moveList();
@@ -225,16 +242,7 @@ class Main {
                                         LOGGER.info(STR."\{playedMove}\n\{currentState}");
                                     }
 
-                                    if (state.status().ordinal() > Status.started.ordinal()) {
-                                        client.bot().chat(game.gameId(), "Thanks for the game!");
-                                        if (state.winner() instanceof Some(var winner)) {
-                                            LOGGER.info(() -> STR."Winner: \{winner == Color.white ? white : black}");
-                                        } else {
-                                            LOGGER.info(() -> STR."No winner: \{state.status()}");
-                                        }
-                                    } else {
-                                        processMoves.accept(String.join(" ", moveList));
-                                    }
+                                    processMoves.accept(String.join(" ", moveList));
                                 }
 
                                 case OpponentGone gone                  -> LOGGER.info(() -> STR."Gone: \{gone}");
