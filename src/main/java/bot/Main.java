@@ -207,22 +207,6 @@ class Main {
                                 }
 
                                 case State state -> {
-                                    if (state.status().ordinal() > Status.started.ordinal()) {
-                                        client.bot().chat(game.gameId(), "Thanks for the game!");
-                                        if (state.winner() instanceof Some(var winner)) {
-                                            LOGGER.info(() -> STR."Winner: \{winner == Color.white ? white : black}");
-                                        } else {
-                                            LOGGER.info(() -> STR."No winner: \{state.status()}");
-                                        }
-                                        break;
-                                    }
-
-                                    if (state.drawOffer() instanceof Some(var color)
-                                        && color != game.color()) {
-                                        client.bot().handleDrawOffer(game.gameId(), true);
-                                        break;
-                                    }
-
                                     var moveList = state.moveList();
                                     moveList = moveList.subList(movesPlayedSinceStart.get(), moveList.size());
                                     int moves = moveList.size();
@@ -240,6 +224,22 @@ class Main {
                                         var currentState = STR."\{board.toFEN()} \{board.gameState()} \{state.status()}";
 
                                         LOGGER.info(STR."\{playedMove}\n\{currentState}");
+                                    }
+
+                                    if (state.status().ordinal() > Status.started.ordinal()) {
+                                        client.bot().chat(game.gameId(), "Thanks for the game!");
+                                        if (state.winner() instanceof Some(var winner)) {
+                                            LOGGER.info(() -> STR."Winner: \{winner == Color.white ? white : black}");
+                                        } else {
+                                            LOGGER.info(() -> STR."No winner: \{state.status()}");
+                                        }
+                                        break;
+                                    }
+
+                                    if (state.drawOffer() instanceof Some(var color)
+                                        && color != game.color()) {
+                                        client.bot().handleDrawOffer(game.gameId(), true);
+                                        break;
                                     }
 
                                     processMoves.accept(String.join(" ", moveList));
