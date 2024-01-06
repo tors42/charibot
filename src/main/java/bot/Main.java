@@ -22,8 +22,6 @@ class Main {
     BlockingQueue<GameInfo>              gamesToStart = new ArrayBlockingQueue<>(64);
     BlockingQueue<GameInfo>              ongoingGames = new ArrayBlockingQueue<>(64);
     BlockingQueue<ChallengeCreatedEvent> challenges   = new ArrayBlockingQueue<>(64);
-    Set<String> waitingToAcceptOppId = Collections.synchronizedSet(new HashSet<>());
-    Set<String> handledChallenges = Collections.synchronizedSet(new HashSet<>());
 
     ExecutorService executor = Executors.newCachedThreadPool();
 
@@ -76,12 +74,6 @@ class Main {
                     var challenge = challenges.take();
                     ChallengeInfo c = challenge.challenge();
 
-                    if (handledChallenges.contains(challenge.id())) {
-                        LOGGER.warning(() -> STR."Ignoring already handled challenge: \{challenge.id()} - https://github.com/lichess-org/lila/issues/14093");
-                        continue;
-                    }
-
-
                     var challenger = c.players().challengerOpt().orElseThrow();
 
                     if (c.gameType().rated()) {
@@ -95,13 +87,6 @@ class Main {
                         && ! (c.gameType().variant() instanceof VariantType.FromPosition)) {
                         LOGGER.info(() -> STR."Declining non-standard challenge from \{challenger.user().name()}: \{challenge}");
                         client.challenges().declineChallenge(challenge.id(), d -> d.standard());
-                        continue;
-                    }
-
-                    boolean alreadyAcceptedSameOpponent = waitingToAcceptOppId.contains(challenger.user().id());
-                    if (alreadyAcceptedSameOpponent) {
-                        LOGGER.info(() -> STR."Declining challenge from \{challenger.user().name()} - already challenged: \{challenge}");
-                        client.challenges().declineChallenge(challenge.id(), d -> d.later());
                         continue;
                     }
 
@@ -119,20 +104,14 @@ class Main {
                         continue;
                     }
 
-
-                    waitingToAcceptOppId.add(challenger.user().id());
-                    handledChallenges.add(challenge.id());
-
                     var acceptResult = client.challenges().acceptChallenge(challenge.id());
 
                     if (acceptResult instanceof Fail<?> f) {
-                        waitingToAcceptOppId.remove(challenger.user().id());
-                        handledChallenges.remove(challenge.id());
                         LOGGER.warning(() -> STR."Failed (\{f}) to accept \{challenge}!");
                         continue;
-                    } else {
-                        LOGGER.info(() -> STR."Accepted from \{challenger.user().name()}: \{challenge}");
                     }
+
+                    LOGGER.info(() -> STR."Accepted from \{challenger.user().name()}: \{challenge}");
 
                     var greeting = challenge.isRematch()
                         ? "Again!"
@@ -156,7 +135,6 @@ class Main {
                 try {
                     var game = gamesToStart.take();
                     ongoingGames.offer(game);
-                    waitingToAcceptOppId.remove(game.opponent().id());
 
                     String fenAtGameStart = game.fen();
                     String opponent = game.opponent().name();
