@@ -12,12 +12,12 @@
         <dependency>
             <groupId>io.github.tors42</groupId>
             <artifactId>chariot</artifactId>
-            <version>0.0.83</version>
+            <version>0.0.84</version>
         </dependency>
     </dependencies>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>22</maven.compiler.release>
     </properties>
 
     <build>
