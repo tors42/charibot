@@ -76,6 +76,12 @@ class Main {
 
                     var challenger = c.players().challengerOpt().orElseThrow();
 
+                    if (c.rules().contains("noAbort")) {
+                        LOGGER.info(() -> STR."Declining \"noAbort\" challenge from \{challenger.user().name()}: \{challenge}");
+                        client.challenges().declineChallenge(challenge.id(), d -> d.generic());
+                        continue;
+                    }
+
                     if (c.gameType().rated()) {
                         LOGGER.info(() -> STR."Declining rated challenge from \{challenger.user().name()}: \{challenge}");
                         client.challenges().declineChallenge(challenge.id(), d -> d.casual());
