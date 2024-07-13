@@ -37,7 +37,7 @@ record ClientAndProfile(ClientAuth client, UserAuth profile) {
         if (System.getenv("BOT_TOKEN") instanceof String token) { // scope bot:play
             var client = Client.auth(conf -> conf.api(lichessApi), token);
             if (client.scopes().contains(Scope.bot_play)) {
-                LOGGER.info(() -> STR."Storing and using provided token (\{prefs})");
+                LOGGER.info(() -> "Storing and using provided token (%s)".formatted(prefs));
                 client.store(prefs);
                 return client;
             }
@@ -49,29 +49,29 @@ record ClientAndProfile(ClientAuth client, UserAuth profile) {
 
         if (client instanceof ClientAuth auth
             && auth.scopes().contains(Scope.bot_play)) {
-            LOGGER.info(() -> STR."Using stored token (\{prefs})");
+            LOGGER.info(() -> "Using stored token (%s)".formatted(prefs));
             return auth;
         }
 
         var authResult = Client.auth(
             conf -> conf.api(lichessApi),
-            uri -> System.out.println(STR."""
+            uri -> System.out.println("""
 
                 Visit the following URL and choose to grant access to this application or not:
 
-                \{uri}
+                %s
 
                 Tip, open URL in "incognito"/private browser to log in with bot account
                 to avoid logging out with normal account.
-                """),
+                """.formatted(uri)),
             pkce -> pkce.scope(Scope.bot_play));
 
         if (! (authResult instanceof AuthOk(var auth))) {
-            LOGGER.warning(() -> STR."OAuth PKCE flow failed: \{authResult}");
+            LOGGER.warning(() -> "OAuth PKCE flow failed: %s".formatted(authResult));
             throw new RuntimeException(authResult.toString());
         }
 
-        LOGGER.info(() -> STR."OAuth PKCE flow succeeded - storing and using token (\{prefs})");
+        LOGGER.info(() -> "OAuth PKCE flow succeeded - storing and using token (%s)".formatted(prefs));
         auth.store(prefs);
 
         return auth;
@@ -81,15 +81,15 @@ record ClientAndProfile(ClientAuth client, UserAuth profile) {
         // Check the Lichess account
         var profileResult = client.account().profile();
         if (! (profileResult instanceof Entry(var profile))) {
-            LOGGER.warning(() -> STR."Failed to lookup bot account profile: \{profileResult}");
-            throw new RuntimeException(STR."Failed to lookup bot account profile: \{profileResult}");
+            LOGGER.warning(() -> "Failed to lookup bot account profile: %s".formatted(profileResult));
+            throw new RuntimeException("Failed to lookup bot account profile: %s".formatted(profileResult));
         }
 
         // Lichess account is a BOT account, we're done - return profile
         if (profile.title() instanceof Some(var title) && "BOT".equals(title)) return profile;
 
         // It wasn't a BOT account...
-        LOGGER.warning(() -> STR."\{profile.name()} is not a BOT account");
+        LOGGER.warning(() -> "%s is not a BOT account".formatted(profile.name()));
 
         // Check if eligible to upgrade to BOT account
         if (profile.accountStats().all() > 0) {
@@ -98,7 +98,7 @@ record ClientAndProfile(ClientAuth client, UserAuth profile) {
         }
 
         // Ask if user wants to upgrade to BOT account
-        if (! (System.console().readLine(STR."Transform account (\{profile.name()}) to BOT account? (Warning, can't be undone) [N/y]: ")
+        if (! (System.console().readLine("Transform account (%s) to BOT account? (Warning, can't be undone) [N/y]: ".formatted(profile.name()))
                 instanceof String choice && choice.toLowerCase(Locale.ROOT).equals("y"))) {
             LOGGER.warning(() -> "Did not want to upgrade to BOT account");
             throw new RuntimeException("Did not want to upgrade to BOT account");
@@ -106,8 +106,8 @@ record ClientAndProfile(ClientAuth client, UserAuth profile) {
 
         // User wanted to upgrade to BOT account - attempt to do so
         if (client.bot().upgradeToBotAccount() instanceof Fail<?> fail) {
-            LOGGER.warning(() -> STR."Failed to upgrade account to BOT account: \{fail}");
-            throw new RuntimeException(STR."Failed to upgrade account to BOT account: \{fail}");
+            LOGGER.warning(() -> "Failed to upgrade account to BOT account: %s".formatted(fail));
+            throw new RuntimeException("Failed to upgrade account to BOT account: %s".formatted(fail));
         }
 
         // Tada!

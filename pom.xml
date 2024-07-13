@@ -12,7 +12,7 @@
         <dependency>
             <groupId>io.github.tors42</groupId>
             <artifactId>chariot</artifactId>
-            <version>0.1.2</version>
+            <version>0.1.5</version>
         </dependency>
     </dependencies>
 
@@ -29,14 +29,16 @@
                 <extensions>true</extensions>
                 <configuration>
                     <launcher>bot=charibot/bot.Main</launcher>
+                    <!--
                     <addOptions>
-                        <addOption>--enable-preview</addOption>
+                        <addOption>- -enable-preview</addOption>
                     </addOptions>
+                    -->
                     <addModules>
                         <addModule>jdk.jfr</addModule>
                         <addModule>jdk.jcmd</addModule>
                     </addModules>
-                    <compress>2</compress>
+                    <compress>zip-9</compress>
                     <noHeaderFiles>true</noHeaderFiles>
                     <noManPages>true</noManPages>
                     <!--<stripDebug>true</stripDebug>-->
@@ -47,9 +49,11 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
+                    <!--
                     <compilerArgs>
-                        <compilerArg>--enable-preview</compilerArg>
+                        <compilerArg>- -enable-preview</compilerArg>
                     </compilerArgs>
+                    -->
                 </configuration>
             </plugin>
         </plugins>

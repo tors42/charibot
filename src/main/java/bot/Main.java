@@ -41,7 +41,7 @@ class Main {
 
                     // Check for failure
                     if (! (connectResult instanceof Entries(var events))) {
-                        LOGGER.warning(() -> STR."Failed to connect: \{connectResult}");
+                        LOGGER.warning(() -> "Failed to connect: %s".formatted(connectResult));
                         TimeUnit.SECONDS.sleep(60);
                         continue;
                     }
@@ -57,11 +57,11 @@ class Main {
                             case GameStopEvent _,
                                  GameStartEvent _,
                                  ChallengeCanceledEvent _,
-                                 ChallengeDeclinedEvent _ -> LOGGER.fine(() -> STR."\{event}");
+                                 ChallengeDeclinedEvent _ -> LOGGER.fine(() -> "%s".formatted(event));
                         }});
 
                 } catch (Exception e) {
-                    LOGGER.log(Level.WARNING, e, () -> STR."EventStream: \{e.getMessage()}\n\{Instant.now()}");
+                    LOGGER.log(Level.WARNING, e, () -> "EventStream: %s\n%s".formatted(e.getMessage(), Instant.now()));
                 }
             }
         });
@@ -77,13 +77,13 @@ class Main {
                     var challenger = c.players().challengerOpt().orElseThrow();
 
                     if (c.rules().contains("noAbort")) {
-                        LOGGER.info(() -> STR."Declining \"noAbort\" challenge from \{challenger.user().name()}: \{challenge}");
+                        LOGGER.info(() -> "Declining \"noAbort\" challenge from %s: %s".formatted(challenger.user().name(), challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.generic());
                         continue;
                     }
 
                     if (c.gameType().rated()) {
-                        LOGGER.info(() -> STR."Declining rated challenge from \{challenger.user().name()}: \{challenge}");
+                        LOGGER.info(() -> "Declining rated challenge from %s: %s".formatted(challenger.user().name(), challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.casual());
                         continue;
                     }
@@ -91,7 +91,7 @@ class Main {
                     if (c.gameType().variant() != VariantType.Variant.standard
                         && ! (c.gameType().variant() instanceof VariantType.Chess960)
                         && ! (c.gameType().variant() instanceof VariantType.FromPosition)) {
-                        LOGGER.info(() -> STR."Declining non-standard challenge from \{challenger.user().name()}: \{challenge}");
+                        LOGGER.info(() -> "Declining non-standard challenge from %s: %s".formatted(challenger.user().name(), challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.standard());
                         continue;
                     }
@@ -99,13 +99,13 @@ class Main {
                     boolean alreadyPlayingSameOpponent = ongoingGames.stream()
                             .anyMatch(game -> challenger.user().id().equals(game.opponent().id()));
                     if (alreadyPlayingSameOpponent) {
-                        LOGGER.info(() -> STR."Declining challenge from \{challenger.user().name()} - already playing: \{challenge}");
+                        LOGGER.info(() -> "Declining challenge from %s - already playing: %s".formatted(challenger.user().name(), challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.later());
                         continue;
                     }
 
                     if (ongoingGames.size() >= 14) {
-                        LOGGER.info(() -> STR."Declining too many games from \{challenger.user().name()}: \{challenge}");
+                        LOGGER.info(() -> "Declining too many games from %s: %s".formatted(challenger.user().name(), challenge));
                         client.challenges().declineChallenge(challenge.id(), d -> d.later());
                         continue;
                     }
@@ -113,24 +113,24 @@ class Main {
                     var acceptResult = client.challenges().acceptChallenge(challenge.id());
 
                     if (acceptResult instanceof Fail<?> f) {
-                        LOGGER.warning(() -> STR."Failed (\{f}) to accept \{challenge}!");
+                        LOGGER.warning(() -> "Failed (%s) to accept %s!".formatted(f, challenge));
                         continue;
                     }
 
-                    LOGGER.info(() -> STR."Accepted from \{challenger.user().name()}: \{challenge}");
+                    LOGGER.info(() -> "Accepted from %s: %s".formatted(challenger.user().name(), challenge));
 
                     var greeting = challenge.isRematch()
                         ? "Again!"
-                        : STR."""
-                          Hi \{challenger.user().name()}!
+                        : """
+                          Hi %s!
                           I wish you a good game!
-                          """;
+                          """.formatted(challenger.user().name());
                      executor.submit(() -> {
                          try { Thread.sleep(Duration.ofSeconds(1));} catch (InterruptedException _) {}
                          client.bot().chat(challenge.id(), greeting);
                      });
                 } catch (Exception e) {
-                    LOGGER.log(Level.WARNING, e, () -> STR."ChallengeAcceptor: \{e.getMessage()}\n\{Instant.now()}");
+                    LOGGER.log(Level.WARNING, e, () -> "ChallengeAcceptor: %s\n%s".formatted(e.getMessage(), Instant.now()));
                 }
             }
         });
@@ -173,19 +173,19 @@ class Main {
                             .orElse(One.fail(-1, Err.from("no move")));
 
                             if (result instanceof Fail<?> fail) {
-                                LOGGER.warning(() -> STR."Play failed: \{fail} - resigning");
+                                LOGGER.warning(() -> "Play failed: %s - resigning".formatted(fail));
                                 client.bot().resign(game.gameId());
                             }
                         };
 
-                        LOGGER.fine(() -> STR."Connecting to game: \{game}");
+                        LOGGER.fine(() -> "Connecting to game: %s".formatted(game));
 
                         final AtomicInteger movesPlayedSinceStart = new AtomicInteger();
 
                         client.bot().connectToGame(game.gameId()).stream()
                             .forEach(event -> { switch(event) {
                                 case Full full -> {
-                                    LOGGER.info(() -> STR."FULL: \{full}");
+                                    LOGGER.info(() -> "FULL: %s".formatted(full));
                                     movesPlayedSinceStart.set(full.state().moveList().size());
                                     processMoves.accept("");
                                 }
@@ -199,23 +199,22 @@ class Main {
                                         if (moves > 1) board = board.play(String.join(" ", moveList.subList(0, moves-1)));
 
                                         String lastMove = moveList.getLast();
-
-                                        var playedMove = STR."\{lastMove} (\{board.toSAN(lastMove)}) played by \{
-                                                board.whiteToMove() ? (white + " (w)") : (black + " (b)") }";
+                                        var playedMove = "%s (%s) played by %s".formatted(lastMove, board.toSAN(lastMove),
+                                                board.whiteToMove() ? (white + " (w)") : (black + " (b)"));
 
                                         board = board.play(lastMove);
 
-                                        var currentState = STR."\{board.toFEN()} \{board.gameState()} \{state.status()}";
+                                        var currentState = "%s %s %s".formatted(board.toFEN(), board.gameState(), state.status());
 
-                                        LOGGER.info(STR."\{playedMove}\n\{currentState}");
+                                        LOGGER.info("%s\n%s".formatted(playedMove, currentState));
                                     }
 
                                     if (state.status().ordinal() > Status.started.ordinal()) {
                                         client.bot().chat(game.gameId(), "Thanks for the game!");
                                         if (state.winner() instanceof Some(var winner)) {
-                                            LOGGER.info(() -> STR."Winner: \{winner == Color.white ? white : black}");
+                                            LOGGER.info(() -> "Winner: %s".formatted(winner == Color.white ? white : black));
                                         } else {
-                                            LOGGER.info(() -> STR."No winner: \{state.status()}");
+                                            LOGGER.info(() -> "No winner: %s".formatted(state.status()));
                                         }
                                         break;
                                     }
@@ -229,11 +228,11 @@ class Main {
                                     processMoves.accept(String.join(" ", moveList));
                                 }
 
-                                case OpponentGone gone                  -> LOGGER.info(() -> STR."Gone: \{gone}");
-                                case Chat(var name, var text, var room) -> LOGGER.info(() -> STR."Chat: [\{name}][\{room}]: \{text}");
+                                case OpponentGone gone                  -> LOGGER.info(() -> "Gone: %s".formatted(gone));
+                                case Chat(var name, var text, var room) -> LOGGER.info(() -> "Chat: [%s][%s]: %s".formatted(name, room, text));
                             }});
 
-                        LOGGER.fine(() -> STR."GameEvent handler for \{game.gameId()} finished");
+                        LOGGER.fine(() -> "GameEvent handler for %s finished".formatted(game.gameId()));
 
                         ongoingGames.remove(game);
 
@@ -241,7 +240,7 @@ class Main {
                         ongoingGames.remove(game);
                     }});
                 } catch (Exception e) {
-                    LOGGER.log(Level.WARNING, e, () -> STR."GameAcceptor: \{e.getMessage()}\n\{Instant.now()}");
+                    LOGGER.log(Level.WARNING, e, () -> "GameAcceptor: %s\n%s".formatted(e.getMessage(), Instant.now()));
                 }
             }
         });
