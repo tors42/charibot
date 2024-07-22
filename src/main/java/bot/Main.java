@@ -114,6 +114,7 @@ class Main {
 
                     if (acceptResult instanceof Fail<?> f) {
                         LOGGER.warning(() -> "Failed (%s) to accept %s!".formatted(f, challenge));
+                        client.challenges().declineChallenge(challenge.id(), d -> d.generic());
                         continue;
                     }
 
