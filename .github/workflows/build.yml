@@ -22,7 +22,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Download JDK Linux
         if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -36,7 +36,7 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         run: curl -L -o ${{ runner.temp }}/jdk.zip ${{ env.WINDOWS_JDK_URL }}
 
-      - uses: actions/setup-java@v3
+      - uses: actions/setup-java@v4
         if: ${{ matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest' }}
         with:
           distribution: 'jdkfile'
