@@ -155,20 +155,21 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                             Board board = Board.fromFEN(fenAtGameStart);
                             if (moves > 1) board = board.play(String.join(" ", moveList.subList(0, moves-1)));
                             String lastMove = moveList.getLast();
-                            String lastMoveSAN = board.toSAN(lastMove);
+
+                            String infoBeforeMove = "%s (%s) played (%s - %s)".formatted(
+                                    lastMove,
+                                    board.toSAN(lastMove),
+                                    white + (board.whiteToMove() ? "*" : ""),
+                                    black + (board.blackToMove() ? "*" : ""));
 
                             board = board.play(lastMove);
 
-                            LOGGER.info("%s\n%s".formatted(
-                                        "%s (%s) played (%s - %s)".formatted(
-                                            lastMove,
-                                            lastMoveSAN,
-                                            white + (board.whiteToMove() ? "*" : ""),
-                                            black + (board.blackToMove() ? "*" : "")),
-                                        "%s %s %s".formatted(
-                                            board.toFEN(),
-                                            board.gameState(),
-                                            state.status())));
+                            String infoAfterMove = "%s %s %s".formatted(
+                                    board.toFEN(),
+                                    board.gameState(),
+                                    state.status());
+
+                            LOGGER.info("%s\n%s".formatted(infoBeforeMove, infoAfterMove));
                         }
 
                         if (state.status().ordinal() > Status.started.ordinal()) {
