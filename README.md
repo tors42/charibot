@@ -14,57 +14,63 @@ https://lichess.org/@/charibot
 
 # Releases
 
-Pre-built releases (for `windows-x64`, `macos-x64` and `linux-x64`) are available at https://github.com/tors42/charibot/releases
+Pre-built releases (for `windows-x64`, `macos-aarch64` and `linux-x64`) are
+available at https://github.com/tors42/charibot/releases
 
-They are built with the `jlink` tool - so no Java installation is needed to run the application. Inside the `windows.zip`, `macos.zip` and `linux.zip` there's a `charibot-<version>.zip` which can be unpacked into a new directory. And inside that directory the application can be launched from a command-line terminal window - `<directory>/bin/bot`
+They are built with the `jlink` tool - so no Java installation is needed to run
+the application. Simply create a directory somewhere, and unpack the downloaded
+zip file into it. Inside that directory the application can be launched from a
+command-line terminal window, `<directory>/bin/bot`
 
 # Run
 
-You will need a Lichess (BOT) account. If you don't already have a Lichess BOT
-account, you can create an account at https://lichess.org/signup
+You will need a Lichess (BOT) account. If you don't already have a Lichess account,
+you can create an account at https://lichess.org/signup
 
-There are two ways you can make the application control your Lichess BOT
-account
+If you use a new account which is not yet a BOT account,
+the application will ask you if you want to convert the account to a BOT account.
 
- 1. Using a pre-created token
- 2. Using OAuth2 PKCE flow
+    $ <directory>/bin/bot
 
-## Pre-created token
+or
 
-To use a pre-created token, begin by using a Web Browser to login with your
-Lichess BOT account (or newly created account) and [create the
-token](https://lichess.org/account/oauth/token/create?scopes[]=bot:play&description=Prefilled+bot+token).
-You can then start the application with `BOT_TOKEN` environment variable set to
-the created token:
+    $ <directory>/bin/bot.exe
+
+When running the application for the first time, you will be asked to authorize
+the application to access your BOT account, which will create and store a token
+which the application can use to send moves to Lichess. The token will be
+reused when running the application again, so only need to authorize once.
+
+_Note, it is possible to revoke the token at any time via [https://lichess.org/account/security](https://lichess.org/account/security),
+and if running the application again you will once again be asked to authorize the application._
+
+_Note, if you already have a Lichess BOT account and an existing [token with bot:play scope](https://lichess.org/account/oauth/token/create?scopes[]=bot:play&description=Prefilled+bot+token),
+you can run the application with that token set in an environment variable `BOT_TOKEN`:_
 
     $ export BOT_TOKEN=lip_...
     $ <directory>/bin/bot
 
-## OAuth2 PKCE
+or
 
-To use OAuth2 PKCE flow, you just start the application without a token - and
-the application will generate a one-time Lichess URL which you can open in an
-"incognito" Web Browser window and login with your Lichess BOT account (or
-newly created account) and choose to approve the application:
-
-    $ <directory>/bin/bot
-
-_Note, the OAuth2 PKCE flow will currently only work if you run the application
-on your local computer - so if you intend to run the bot deployed on a remote
-server, you would need to use the `BOT_TOKEN` alternative (or update this
-application to make use of a publicly reachable `redirect_uri` instead of the
-default `localhost`... (Example of an application which does that can be found
-[here](https://github.com/tors42/challengeaiexample/)))_
+    $ set BOT_TOKEN=lip_...
+    $ <directory>/bin/bot.exe
 
 # Build
 
-To build, one needs [Maven](https://maven.apache.org) and at least [Java 21](https://jdk.java.net/)
+The application makes use of [JDK 23](https://jdk.java.net/23) with preview
+features.
+
+To build, one needs [Maven](https://maven.apache.org):
 
     $ mvn clean verify
 
 The bot application will be packaged in `target/charibot-0.0.1-SNAPSHOT.zip`
-(and unpackaged in `target/maven-jlink/default/`)
+(and unpackaged in `target/maven-jlink/default/`, so can be tested with
+`target/maven-jlink/default/bin/bot`)
 
-Note, the built bot application is a self-contained runtime so it is possible
-to run it without having Java installed.
+Note, it is also possible to run the application from source without building
+it. This needs the above JDK, downloading of dependency [chariot-0.1.6.jar](https://repo1.maven.org/maven2/io/github/tors42/chariot/0.1.6/chariot-0.1.6.jar) and providing command-line flags:
 
+    $ java --enable-preview --module-path ./chariot-0.1.6.jar --add-modules chariot ./src/main/java/bot/Bot.java
+
+The `build.yml` workflow in [GitHub Actions](https://github.com/tors42/charibot/blob/main/.github/workflows/build.yml) can also be used for reference.
