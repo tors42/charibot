@@ -174,11 +174,9 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
                         if (state.status().ordinal() > Status.started.ordinal()) {
                             client.bot().chat(game.gameId(), "Thanks for the game!");
-                            if (state.winner() instanceof Some(var winner)) {
-                                LOGGER.info(() -> "Winner: %s".formatted(winner == Color.white ? white : black));
-                            } else {
-                                LOGGER.info(() -> "No winner: %s".formatted(state.status()));
-                            }
+                            LOGGER.info(() -> state.winner() instanceof Some(var winner)
+                                    ? "Winner: %s".formatted(winner)
+                                    : "No winner: %s".formatted(state.status()));
                             break;
                         }
 
