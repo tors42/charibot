@@ -10,7 +10,7 @@ import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
-import java.util.function.Consumer;
+import java.util.function.*;
 import java.util.logging.*;
 import java.util.logging.Level;
 
@@ -101,10 +101,9 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
         try {
             String fenAtGameStart = game.fen();
-            String opponent = game.opponent().name();
 
-            String white = game.color() == Color.white ? account.name() : opponent;
-            String black = game.color() == Color.black ? account.name() : opponent;
+            Function<Color, String> nameByColor = color ->
+                color == game.color() ? account.name() : game.opponent().name();
 
             Consumer<String> processMoves = moves -> {
                 Board board = moves.isBlank()
@@ -159,8 +158,8 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                             String infoBeforeMove = "%s (%s) played (%s - %s)".formatted(
                                     lastMove,
                                     board.toSAN(lastMove),
-                                    white + (board.whiteToMove() ? "*" : ""),
-                                    black + (board.blackToMove() ? "*" : ""));
+                                    nameByColor.apply(Color.white) + (board.whiteToMove() ? "*" : ""),
+                                    nameByColor.apply(Color.black) + (board.blackToMove() ? "*" : ""));
 
                             board = board.play(lastMove);
 
@@ -175,7 +174,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                         if (state.status().ordinal() > Status.started.ordinal()) {
                             client.bot().chat(game.gameId(), "Thanks for the game!");
                             LOGGER.info(() -> state.winner() instanceof Some(var winner)
-                                    ? "Winner: %s".formatted(winner)
+                                    ? "Winner: %s".formatted(nameByColor.apply(winner))
                                     : "No winner: %s".formatted(state.status()));
                             break;
                         }
