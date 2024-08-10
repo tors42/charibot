@@ -1,3 +1,4 @@
+# Workflow which will build charibot and "cross-compile"/jlink it for multiple OS and architecture
 name: build
 
 on:
@@ -11,55 +12,80 @@ on:
 jobs:
   jlink:
     env:
-      LINUX_JDK_URL:   'https://download.java.net/java/early_access/jdk23/34/GPL/openjdk-23-ea+34_linux-x64_bin.tar.gz'
-      MACOS_JDK_URL:   'https://download.java.net/java/early_access/jdk23/34/GPL/openjdk-23-ea+34_macos-aarch64_bin.tar.gz'
-      WINDOWS_JDK_URL: 'https://download.java.net/java/early_access/jdk23/34/GPL/openjdk-23-ea+34_windows-x64_bin.zip'
+      JDK_BASE_URL: "https://download.java.net/java/GA/jdk23/3c5b90190c68498b986a97f276efd28a/36/GPL/"
+      build_os: linux
+      build_arch: x64
+      build_pkg: tar.gz
 
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os:    [linux, windows, macos]
+        arch:  [aarch64, x64]
+        include:
+          - os: linux
+            pkg: tar.gz
+          - os: windows
+            pkg: zip
+          - os: macos
+            pkg: tar.gz
+        exclude:
+          - os: windows
+            arch: aarch64
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download JDK Linux
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: curl -L -o ${{ runner.temp }}/jdk.tar.gz ${{ env.LINUX_JDK_URL }}
+      - name: Download target OS+Arch JDK
+        # curl --output /tmp/jdk.tar.gz \
+        # https://download.java.net/java/GA/jdk23/3c5b90190c68498b986a97f276efd28a/36/GPL/openjdk-23_linux-x64_bin.tar.gz
+        run: curl --output ${{ runner.temp }}/jdk.${{ matrix.pkg }} ${{ env.JDK_BASE_URL }}/openjdk-23_${{ matrix.os }}-${{ matrix.arch }}_bin.${{ matrix.pkg }}
 
-      - name: Download JDK MacOS
-        if: ${{ matrix.os == 'macos-latest' }}
-        run: curl -L -o ${{ runner.temp }}/jdk.tar.gz ${{ env.MACOS_JDK_URL }}
-
-      - name: Download JDK Windows
-        if: ${{ matrix.os == 'windows-latest' }}
-        run: curl -L -o ${{ runner.temp }}/jdk.zip ${{ env.WINDOWS_JDK_URL }}
-
+      # In order to avoid knowing the directory structure within the different target OS+Arch archives,
+      # using setup-java action to unpack the target OS+Arch archive (probably performs unpack + JAVA_HOME + PATH)
+      # to be able to easily reference the target JDK location as $JAVA_HOME
       - uses: actions/setup-java@v4
-        if: ${{ matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest' }}
         with:
           distribution: 'jdkfile'
-          jdkFile: ${{ runner.temp }}/jdk.tar.gz
+          jdkFile: ${{ runner.temp }}/jdk.${{ matrix.pkg }}
           java-version: '23'
-          architecture: x64 # note, macos aarch64. But maybe setup-java doesn't not look at this field if using 'jdkFile'
+          architecture: ${{ matrix.arch }}
+
+      - name: Copy target JDK
+        run: cp -r ${{ env.JAVA_HOME }} ${{ runner.temp }}/targetjdk
+
+      - name: Download build environment JDK
+        if: ${{ matrix.os != env.build_os || matrix.arch != env.build_arch }}
+        run: curl --output ${{ runner.temp }}/buildjdk.${{ env.build_pkg }} ${{ env.JDK_BASE_URL }}/openjdk-23_${{ env.build_os }}-${{ env.build_arch }}_bin.${{ env.build_pkg }}
 
       - uses: actions/setup-java@v4
-        if: ${{ matrix.os == 'windows-latest' }}
+        if: ${{ matrix.os != env.build_os || matrix.arch != env.build_arch }}
         with:
           distribution: 'jdkfile'
-          jdkFile: ${{ runner.temp }}/jdk.zip
+          jdkFile: ${{ runner.temp }}/buildjdk.${{ env.build_pkg}}
           java-version: '23'
-          architecture: x64
+          architecture: ${{ env.build_arch }}
 
-      - name: version
+      - name: Set version in pom.xml
         run: mvn -B versions:set -DnewVersion="${{ inputs.version }}"
 
-      - name: build
-        run: mvn -B clean verify
+      - name: Run build
+        run: mvn -B clean verify -Dsource.jdk=$(dirname $(find ${{ runner.temp }}/targetjdk -name jmods)) -Dos.arch.classifier=${{ matrix.os }}-${{ matrix.arch }}
+
+      - name: Prepare directory to package
+        run: mkdir to-package && mv target/maven-jlink/classifiers/${{ matrix.os }}-${{ matrix.arch }} to-package/charibot-${{ inputs.version }}
+
+      - name: Determine file type of packaged java binary
+        run: file $(find to-package/ -regex ".*/bin/java\(.exe\)?$")
+
+      # upload-artifact doesn't preserve the executable bit information of files,
+      # so creating a zip file which preserves the executable bits,
+      # and then tell upload-artifact to zip this zip file instead of the files within the zip... sigh.
+      - name: Create zip, preserving executable bits
+        run: cd to-package && zip -r charibot-${{ inputs.version }}-${{ matrix.os }}-${{ matrix.arch }}.zip charibot-${{ inputs.version }} && cd ..
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}
-          path: target/*.zip
-
+          name: wrapped-zip-charibot-${{ inputs.version }}-${{ matrix.os }}-${{ matrix.arch }}
+          path: to-package/charibot-${{ inputs.version }}-${{ matrix.os }}-${{ matrix.arch }}.zip
