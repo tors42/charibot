@@ -18,6 +18,8 @@
 
     <properties>
         <maven.compiler.release>23</maven.compiler.release>
+        <source.jdk>${env.JAVA_HOME}</source.jdk>
+        <os.arch.classifier>${os.name}-${os.arch}</os.arch.classifier>
     </properties>
 
     <build>
@@ -28,6 +30,8 @@
                 <version>3.2.0</version>
                 <extensions>true</extensions>
                 <configuration>
+                    <sourceJdkModules>${source.jdk}</sourceJdkModules>
+                    <classifier>${os.arch.classifier}</classifier>
                     <launcher>bot=charibot/bot.Bot</launcher>
                     <addOptions>
                         <addOption>--enable-preview</addOption>
