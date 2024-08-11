@@ -29,11 +29,11 @@ you can create an account at https://lichess.org/signup
 If you use a new account which is not yet a BOT account,
 the application will ask you if you want to convert the account to a BOT account.
 
-    $ charibot-<version>/bin/bot
+    $ bin/bot
 
 or
 
-    $ charibot-<version>/bin/bot.exe
+    $ bin/bot.exe
 
 When running the application for the first time, you will be asked to authorize
 the application to access your BOT account, which will create and store a token
@@ -47,12 +47,12 @@ _Note, if you already have a Lichess BOT account and an existing [token with bot
 you can run the application with that token set in an environment variable `BOT_TOKEN`:_
 
     $ export BOT_TOKEN=lip_...
-    $ charibot-<version>/bin/bot
+    $ bin/bot
 
 or
 
     $ set BOT_TOKEN=lip_...
-    $ charibot-<version>/bin/bot.exe
+    $ bin/bot.exe
 
 # Build
 
@@ -79,5 +79,5 @@ The application will be packaged in `target/charibot-0.0.1-SNAPSHOT-<os>-<arch>.
 Note, it is also possible to run the application from source without building
 it with Maven. This needs the above JDK, downloading of dependency [chariot-0.1.7.jar](https://repo1.maven.org/maven2/io/github/tors42/chariot/0.1.7/chariot-0.1.7.jar) and providing command-line flags:
 
-    $ java --enable-preview --module-path chariot-0.1.7.jar --add-modules chariot src/main/java/bot/Bot.java
+    $ java --enable-preview -p chariot-0.1.7.jar --add-modules chariot src/main/java/bot/Bot.java
 
