@@ -11,8 +11,7 @@ on:
 
 jobs:
   jlink:
-    env:
-      JDK_BASE_URL: "https://download.java.net/java/GA/jdk23/3c5b90190c68498b986a97f276efd28a/36/GPL/"
+      JDK_BASE_URL: "https://download.java.net/java/GA/jdk23/3c5b90190c68498b986a97f276efd28a/37/GPL/"
       build_os: linux
       build_arch: x64
       build_pkg: tar.gz
@@ -39,7 +38,7 @@ jobs:
 
       - name: Download target OS+Arch JDK
         # curl --output /tmp/jdk.tar.gz \
-        # https://download.java.net/java/GA/jdk23/3c5b90190c68498b986a97f276efd28a/36/GPL/openjdk-23_linux-x64_bin.tar.gz
+        # https://download.java.net/java/GA/jdk23/3c5b90190c68498b986a97f276efd28a/37/GPL/openjdk-23_linux-x64_bin.tar.gz
         run: curl --output ${{ runner.temp }}/jdk.${{ matrix.pkg }} ${{ env.JDK_BASE_URL }}/openjdk-23_${{ matrix.os }}-${{ matrix.arch }}_bin.${{ matrix.pkg }}
 
       # In order to avoid knowing the directory structure within the different target OS+Arch archives,
