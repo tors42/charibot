@@ -11,6 +11,7 @@ on:
 
 jobs:
   jlink:
+    env:
       JDK_BASE_URL: "https://download.java.net/java/GA/jdk23/3c5b90190c68498b986a97f276efd28a/37/GPL/"
       build_os: linux
       build_arch: x64
