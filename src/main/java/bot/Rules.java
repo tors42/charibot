@@ -18,9 +18,9 @@ record Rules(List<Rule> rules) {
         return new Rules(List.of(
             new Rule((e,_) -> ! e.challenge().players().challengerOpt().isPresent(), "No challenger", DeclineReason.generic),
             new Rule((e,_) -> e.challenge().gameType().rated(), "Rated", DeclineReason.casual),
-            new Rule((e,_) -> e.challenge().gameType().variant() != VariantType.Variant.standard
-                && ! (e.challenge().gameType().variant() instanceof VariantType.Chess960)
-                && ! (e.challenge().gameType().variant() instanceof VariantType.FromPosition), "Variant", DeclineReason.standard),
+            new Rule((e,_) -> e.challenge().gameType().variant() != Variant.Basic.standard
+                && ! (e.challenge().gameType().variant() instanceof Variant.Chess960)
+                && ! (e.challenge().gameType().variant() instanceof Variant.FromPosition), "Variant", DeclineReason.standard),
             new Rule((_, games) -> games.size() > 8, "Too many games", DeclineReason.later),
             new Rule((e, games) -> games.containsKey(e.challenge().players().challengerOpt().map(p -> p.user().id()).orElse("")), "Existing game", DeclineReason.later)
             ));
