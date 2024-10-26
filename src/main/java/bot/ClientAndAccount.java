@@ -23,14 +23,12 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
         return Opt.empty();
     }
 
-    /**
-     * Initialize client with a OAuth token with scope bot:play,
-     * either provided via environment variable BOT_TOKEN (create at https://lichess.org/account/oauth/token/create),
-     * or using OAuth PKCE flow and storing granted token locally with Java Preferences API,
-     * i.e at first run the user must interactively grant access by navigating with a Web Browser
-     * to the Lichess grant page and authorizing with the Bot Account,
-     * and consecutive runs the now already stored token will be used automatically.
-     */
+    /// Initialize client with a OAuth token with scope `bot:play`,
+    /// either provided via environment variable `BOT_TOKEN` (create at https://lichess.org/account/oauth/token/create),
+    /// or using OAuth PKCE flow and storing granted token locally with Java Preferences API,
+    /// i.e at first run the user must interactively grant access by navigating with a Web Browser
+    /// to the Lichess grant page and authorizing with the Bot Account,
+    /// and consecutive runs the now already stored token will be used automatically.
     static Opt<ClientAuth> initializeClient(Preferences prefs) {
 
         URI lichessApi = URI.create(System.getenv("LICHESS_API") instanceof String api ? api : "https://lichess.org");
