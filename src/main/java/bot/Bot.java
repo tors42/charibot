@@ -49,14 +49,16 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                 }
 
                 // Listen for game start events and incoming challenges
-                events.stream().forEach(event -> { switch(event) {
-                    case ChallengeCreatedEvent created -> scope.fork(toCallable(() -> handleChallenge(created)));
-                    case GameStartEvent(var game, _)   -> scope.fork(toCallable(() -> handleGame(game)));
-                    case GameStopEvent _,
-                         GameStartEvent _,
-                         ChallengeCanceledEvent _,
-                         ChallengeDeclinedEvent _ -> LOGGER.fine(() -> "%s".formatted(event));
-                }});
+                try (var stream = events.stream()) {
+                    stream.forEach(event -> { switch(event) {
+                        case ChallengeCreatedEvent created -> scope.fork(toCallable(() -> handleChallenge(created)));
+                        case GameStartEvent(var game, _)   -> scope.fork(toCallable(() -> handleGame(game)));
+                        case GameStopEvent _,
+                             GameStartEvent _,
+                             ChallengeCanceledEvent _,
+                             ChallengeDeclinedEvent _ -> LOGGER.fine(() -> "%s".formatted(event));
+                    }});
+                }
             } finally {
                 scope.shutdown();
                 try { scope.join(); } catch (InterruptedException ie) {}
@@ -138,8 +140,8 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
             final AtomicInteger movesPlayedSinceStart = new AtomicInteger();
 
-            client.bot().connectToGame(game.gameId()).stream()
-                .forEach(event -> { switch(event) {
+            try (var stream = client.bot().connectToGame(game.gameId()).stream()) {
+                stream.forEach(event -> { switch(event) {
                     case Full full -> {
                         LOGGER.info(() -> "FULL: %s".formatted(full));
                         movesPlayedSinceStart.set(full.state().moveList().size());
@@ -191,6 +193,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                     case OpponentGone gone                  -> LOGGER.info(() -> "Gone: %s".formatted(gone));
                     case Chat(var name, var text, var room) -> LOGGER.info(() -> "Chat: [%s][%s]: %s".formatted(name, room, text));
                 }});
+            }
             LOGGER.fine(() -> "GameEvent handler for %s finished".formatted(game.gameId()));
         } finally {
             games.remove(game.opponent().id());
