@@ -1,13 +1,7 @@
 package bot;
 
-import chariot.*;
-import chariot.Client.*;
-import chariot.model.*;
-
-import java.net.URI;
-import java.util.*;
-import java.util.logging.*;
-import java.util.prefs.Preferences;
+import module chariot;
+import module java.base;
 
 record ClientAndAccount(ClientAuth client, UserAuth account) {
 
@@ -45,7 +39,7 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
             var client = Client.auth(conf -> conf.api(lichessApi), token);
             var scopeReq = client.scopes();
             if (scopeReq instanceof Entries(var stream)) {
-                if (stream.anyMatch(scope -> scope == Scope.bot_play)) {
+                if (stream.anyMatch(scope -> scope == Client.Scope.bot_play)) {
                     LOGGER.info(() -> "Storing and using provided token");
                     client.store(prefs);
                     return Opt.of(client);
@@ -63,7 +57,7 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
         if (client instanceof ClientAuth auth) {
             var scopeReq = auth.scopes();
             if (scopeReq instanceof Entries(var stream)) {
-                if (stream.anyMatch(scope -> scope == Scope.bot_play)) {
+                if (stream.anyMatch(scope -> scope == Client.Scope.bot_play)) {
                     LOGGER.info(() -> "Using stored token");
                     return Opt.of(auth);
                 }
@@ -85,9 +79,9 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
                 Tip, open URL in "incognito"/private browser to log in with bot account
                 to avoid logging out with normal account.
                 """.formatted(uri)),
-            pkce -> pkce.scope(Scope.bot_play));
+            pkce -> pkce.scope(Client.Scope.bot_play));
 
-        if (! (authResult instanceof AuthOk(var auth))) {
+        if (! (authResult instanceof Client.AuthOk(var auth))) {
             LOGGER.warning(() -> "OAuth PKCE flow failed: %s".formatted(authResult));
             return Opt.empty();
         }

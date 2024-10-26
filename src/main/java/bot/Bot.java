@@ -1,18 +1,7 @@
 package bot;
 
-import chariot.model.*;
-import chariot.model.Enums.*;
-import chariot.model.Event.*;
-import chariot.model.GameStateEvent.*;
-import chariot.util.Board;
-
-import java.time.*;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.*;
-import java.util.function.*;
-import java.util.logging.*;
-import java.util.logging.Level;
+import module chariot;
+import module java.base;
 
 record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules rules) {
 
@@ -50,19 +39,19 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
         try (var scope = StructuredTaskScope.open();
              var stream = events.stream();) {
             stream.forEach(event -> { switch(event) {
-                case ChallengeCreatedEvent created -> scope.fork(() -> handleChallenge(created));
-                case GameStartEvent(var game, _)   -> scope.fork(() -> handleGame(game));
-                case GameStopEvent _,
-                     GameStartEvent _,
-                     ChallengeCanceledEvent _,
-                     ChallengeDeclinedEvent _      -> LOGGER.fine(() -> "%s".formatted(event));
+                case Event.ChallengeCreatedEvent created -> scope.fork(() -> handleChallenge(created));
+                case Event.GameStartEvent(var game, _)   -> scope.fork(() -> handleGame(game));
+                case Event.GameStopEvent _,
+                     Event.GameStartEvent _,
+                     Event.ChallengeCanceledEvent _,
+                     Event.ChallengeDeclinedEvent _      -> LOGGER.fine(() -> "%s".formatted(event));
             }});
         }
     }
 
     static void sleep(Duration duration) { try { Thread.sleep(duration); } catch (InterruptedException _) {} }
 
-    void handleChallenge(ChallengeCreatedEvent event) {
+    void handleChallenge(Event.ChallengeCreatedEvent event) {
         // Decline if unwanted challenges
         if (rules.decliner(event, games, clientAndAccount.client(), LOGGER) instanceof Some(Runnable decliner)) {
             decliner.run();
@@ -97,7 +86,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
         try {
             String fenAtGameStart = game.fen();
 
-            Function<Color, String> nameByColor = color ->
+            Function<Enums.Color, String> nameByColor = color ->
                 color == game.color() ? account.name() : game.opponent().name();
 
             Consumer<String> processMoves = moves -> {
@@ -105,7 +94,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                     ? Board.fromFEN(fenAtGameStart)
                     : Board.fromFEN(fenAtGameStart).play(moves);
 
-                if (game.color() == Color.white
+                if (game.color() == Enums.Color.white
                         ? board.blackToMove()
                         : board.whiteToMove()) return;
 
@@ -135,13 +124,13 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
             try (var stream = client.bot().connectToGame(game.gameId()).stream()) {
                 stream.forEach(event -> { switch(event) {
-                    case Full full -> {
+                    case GameStateEvent.Full full -> {
                         LOGGER.info(() -> "FULL: %s".formatted(full));
                         movesPlayedSinceStart.set(full.state().moveList().size());
                         processMoves.accept("");
                     }
 
-                    case State state -> {
+                    case GameStateEvent.State state -> {
                         List<String> moveList = state.moveList();
                         moveList = moveList.subList(movesPlayedSinceStart.get(), moveList.size());
                         int moves = moveList.size();
@@ -153,8 +142,8 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                             String infoBeforeMove = "%s (%s) played (%s - %s)".formatted(
                                     lastMove,
                                     board.toSAN(lastMove),
-                                    nameByColor.apply(Color.white) + (board.whiteToMove() ? "*" : ""),
-                                    nameByColor.apply(Color.black) + (board.blackToMove() ? "*" : ""));
+                                    nameByColor.apply(Enums.Color.white) + (board.whiteToMove() ? "*" : ""),
+                                    nameByColor.apply(Enums.Color.black) + (board.blackToMove() ? "*" : ""));
 
                             board = board.play(lastMove);
 
@@ -166,7 +155,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                             LOGGER.info("%s\n%s".formatted(infoBeforeMove, infoAfterMove));
                         }
 
-                        if (state.status().ordinal() > Status.started.ordinal()) {
+                        if (state.status().ordinal() > Enums.Status.started.ordinal()) {
                             client.bot().chat(game.gameId(), "Thanks for the game!");
                             LOGGER.info(() -> state.winner() instanceof Some(var winner)
                                     ? "Winner: %s".formatted(nameByColor.apply(winner))
@@ -183,8 +172,8 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                         processMoves.accept(String.join(" ", moveList));
                     }
 
-                    case OpponentGone gone                  -> LOGGER.info(() -> "Gone: %s".formatted(gone));
-                    case Chat(var name, var text, var room) -> LOGGER.info(() -> "Chat: [%s][%s]: %s".formatted(name, room, text));
+                    case GameStateEvent.OpponentGone gone                  -> LOGGER.info(() -> "Gone: %s".formatted(gone));
+                    case GameStateEvent.Chat(var name, var text, var room) -> LOGGER.info(() -> "Chat: [%s][%s]: %s".formatted(name, room, text));
                 }});
             }
             LOGGER.fine(() -> "GameEvent handler for %s finished".formatted(game.gameId()));
