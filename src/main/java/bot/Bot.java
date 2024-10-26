@@ -37,36 +37,29 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
     }
 
     void run() {
-        try (var scope = new StructuredTaskScope<>()) {
-            try {
-                // Connect the BOT to Lichess
-                Many<Event> events = clientAndAccount.client().bot().connect();
+        // Connect the BOT to Lichess
+        Many<Event> events = clientAndAccount.client().bot().connect();
 
-                // Check for network problems
-                if (events instanceof Fail<?>) {
-                    LOGGER.warning(() -> "Failed to connect: %s".formatted(events));
-                    return;
-                }
+        // Check for network problems
+        if (events instanceof Fail<?>) {
+            LOGGER.warning(() -> "Failed to connect: %s".formatted(events));
+            return;
+        }
 
-                // Listen for game start events and incoming challenges
-                try (var stream = events.stream()) {
-                    stream.forEach(event -> { switch(event) {
-                        case ChallengeCreatedEvent created -> scope.fork(toCallable(() -> handleChallenge(created)));
-                        case GameStartEvent(var game, _)   -> scope.fork(toCallable(() -> handleGame(game)));
-                        case GameStopEvent _,
-                             GameStartEvent _,
-                             ChallengeCanceledEvent _,
-                             ChallengeDeclinedEvent _ -> LOGGER.fine(() -> "%s".formatted(event));
-                    }});
-                }
-            } finally {
-                scope.shutdown();
-                try { scope.join(); } catch (InterruptedException ie) {}
-            }
+        // Listen for game start events and incoming challenges
+        try (var scope = StructuredTaskScope.open();
+             var stream = events.stream();) {
+            stream.forEach(event -> { switch(event) {
+                case ChallengeCreatedEvent created -> scope.fork(() -> handleChallenge(created));
+                case GameStartEvent(var game, _)   -> scope.fork(() -> handleGame(game));
+                case GameStopEvent _,
+                     GameStartEvent _,
+                     ChallengeCanceledEvent _,
+                     ChallengeDeclinedEvent _      -> LOGGER.fine(() -> "%s".formatted(event));
+            }});
         }
     }
 
-    static Callable<Void> toCallable(Runnable runnable) { return () -> { runnable.run(); return null; }; }
     static void sleep(Duration duration) { try { Thread.sleep(duration); } catch (InterruptedException _) {} }
 
     void handleChallenge(ChallengeCreatedEvent event) {
