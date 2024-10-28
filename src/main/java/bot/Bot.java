@@ -178,7 +178,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
             }
             LOGGER.fine(() -> "GameEvent handler for %s finished".formatted(game.gameId()));
         } finally {
-            games.remove(game.opponent().id());
+            games.remove(game.opponent().id(), game.gameId());
         }
     }
 }

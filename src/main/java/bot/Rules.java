@@ -15,7 +15,8 @@ record Rules(List<Rule> rules) {
                 && ! (e.challenge().gameType().variant() instanceof Variant.Chess960)
                 && ! (e.challenge().gameType().variant() instanceof Variant.FromPosition), "Variant", Enums.DeclineReason.standard),
             new Rule((_, games) -> games.size() > 8, "Too many games", Enums.DeclineReason.later),
-            new Rule((e, games) -> games.containsKey(e.challenge().players().challengerOpt().map(p -> p.user().id()).orElse("")), "Existing game", Enums.DeclineReason.later)
+            new Rule((e, games) -> (! (e.rematchOf() instanceof Some))
+                && games.containsKey(e.challenge().players().challengerOpt().map(p -> p.user().id()).orElse("")), "Existing game", Enums.DeclineReason.later)
             ));
     }
 
