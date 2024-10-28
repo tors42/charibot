@@ -12,7 +12,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
             try {
                 if (ClientAndAccount.initialize().map(Bot::new) instanceof Some(var bot)) bot.run();
             } catch (Exception e) {
-                LOGGER.log(Level.WARNING, e, () -> e.getMessage());
+                LOGGER.log(Level.WARNING, e, e::getMessage);
             } finally {
                 var duration = Duration.ofSeconds(60);
                 LOGGER.info(() -> "Retrying in %d seconds...".formatted(duration.toSeconds()));
@@ -44,7 +44,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                 case Event.GameStopEvent _,
                      Event.GameStartEvent _,
                      Event.ChallengeCanceledEvent _,
-                     Event.ChallengeDeclinedEvent _      -> LOGGER.fine(() -> "%s".formatted(event));
+                     Event.ChallengeDeclinedEvent _      -> LOGGER.fine(event::toString);
             }});
         }
     }
@@ -102,7 +102,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
                 Collections.shuffle(validMoves, new Random());
                 One<?> result = validMoves.stream()
-                    .map(m -> m.uci())
+                    .map(Board.Move::uci)
                     .findFirst()
                     .map(uci -> {
                         //var updatedBoard = board.play(uci);
