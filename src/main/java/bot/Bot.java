@@ -35,6 +35,11 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
             return;
         }
 
+        // Check if we are to challenge someone...
+        if (System.getenv("BOT_CHALLENGE_USER") instanceof String challengeUser) {
+            sendChallenge(challengeUser, clientAndAccount.client());
+        }
+
         // Listen for game start events and incoming challenges
         try (var scope = StructuredTaskScope.open();
              var stream = events.stream();) {
@@ -47,6 +52,10 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                      Event.ChallengeDeclinedEvent _      -> LOGGER.fine(event::toString);
             }});
         }
+    }
+
+    static void sendChallenge(String user, ClientAuth client) {
+        client.challenges().challenge(user, p -> p.clockBlitz5m0s().rated(false));
     }
 
     static void sleep(Duration duration) { try { Thread.sleep(duration); } catch (InterruptedException _) {} }
@@ -179,6 +188,12 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
             LOGGER.fine(() -> "GameEvent handler for %s finished".formatted(game.gameId()));
         } finally {
             games.remove(game.opponent().id(), game.gameId());
+        }
+
+        // Check if we are to challenge someone...
+        if (System.getenv("BOT_CHALLENGE_USER") instanceof String challengeUser
+            && game.opponent().id().equalsIgnoreCase(challengeUser)) {
+            sendChallenge(challengeUser, clientAndAccount.client());
         }
     }
 }
