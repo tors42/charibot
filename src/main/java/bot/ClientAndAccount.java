@@ -45,8 +45,13 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
                 LOGGER.info("Provided token is missing bot:play scope");
                 return Opt.empty();
             } else {
-                LOGGER.info("Failed to lookup scopes: %s".formatted(scopeReq));
-                return Opt.empty();
+                if (scopeReq instanceof Fail(int status, _) && status == 401) {
+                    LOGGER.info("Permission denied - token considered canceled");
+                    client.clearAuth(prefs);
+                } else {
+                    LOGGER.info("Failed to lookup scopes: %s".formatted(scopeReq));
+                    return Opt.empty();
+                }
             }
         }
 
@@ -61,8 +66,13 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
                 }
                 // "fallthrough", user has revoked the token since we last used it.
             } else {
-                LOGGER.info("Failed to lookup scopes: %s".formatted(scopeReq));
-                return Opt.empty();
+                if (scopeReq instanceof Fail(int status, _) && status == 401) {
+                    LOGGER.info("Permission denied - token considered canceled");
+                    auth.clearAuth(prefs);
+                } else {
+                    LOGGER.info("Failed to lookup scopes: %s".formatted(scopeReq));
+                    return Opt.empty();
+                }
             }
         }
 
