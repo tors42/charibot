@@ -131,7 +131,15 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
             final AtomicInteger movesPlayedSinceStart = new AtomicInteger();
 
-            try (var stream = client.bot().connectToGame(game.gameId()).stream()) {
+            var connectToGameResult = client.bot().connectToGame(game.gameId());
+
+            if (! (connectToGameResult instanceof Entries<GameStateEvent> entries)) {
+                LOGGER.warning(() -> "Failed to connect to game %s%n%s".formatted(game, connectToGameResult));
+                client.bot().resign(game.gameId());
+                return;
+            }
+
+            try (var stream = entries.stream()) {
                 stream.forEach(event -> { switch(event) {
                     case GameStateEvent.Full full -> {
                         LOGGER.info(() -> "FULL: %s".formatted(full));
