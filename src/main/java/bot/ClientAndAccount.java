@@ -8,16 +8,21 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
     private static Logger LOGGER = Logger.getLogger("bot");
 
     static Opt<ClientAndAccount> initialize() {
-        return initialize(Preferences.userRoot().node(System.getProperty("prefs", "charibot")));
+        Set<Client.Scope> scopes = System.getenv("ARENA_ID") instanceof String
+            ? Set.of(Client.Scope.bot_play, Client.Scope.tournament_write)
+            : Set.of(Client.Scope.bot_play);
+
+        System.out.println("scopes needed: " + scopes);
+        return initialize(Preferences.userRoot().node(System.getProperty("prefs", "charibot")), scopes);
     }
 
-    static Opt<ClientAndAccount> initialize(String prefs) {
-        return initialize(Preferences.userRoot().node(prefs));
+    static Opt<ClientAndAccount> initialize(String prefs, Set<Client.Scope> scopes) {
+        return initialize(Preferences.userRoot().node(prefs), scopes);
     }
 
-    static Opt<ClientAndAccount> initialize(Preferences prefs) {
+    static Opt<ClientAndAccount> initialize(Preferences prefs, Set<Client.Scope> scopes) {
         LOGGER.info(() -> "Using prefs: %s".formatted(prefs));
-        if (initializeClient(prefs) instanceof Some(var client)
+        if (initializeClient(prefs, scopes) instanceof Some(var client)
             && initializeAccount(client) instanceof Some(var account))
             return Opt.of(new ClientAndAccount(client, account));
         return Opt.empty();
@@ -29,7 +34,7 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
     /// i.e at first run the user must interactively grant access by navigating with a Web Browser
     /// to the Lichess grant page and authorizing with the Bot Account,
     /// and consecutive runs the now already stored token will be used automatically.
-    static Opt<ClientAuth> initializeClient(Preferences prefs) {
+    static Opt<ClientAuth> initializeClient(Preferences prefs, Set<Client.Scope> neededScopes) {
 
         URI lichessApi = URI.create(System.getenv("LICHESS_API") instanceof String api ? api : "https://lichess.org");
 
@@ -37,12 +42,12 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
             var client = Client.auth(conf -> conf.api(lichessApi), token);
             var scopeReq = client.scopes();
             if (scopeReq instanceof Entries(var stream)) {
-                if (stream.anyMatch(scope -> scope == Client.Scope.bot_play)) {
+                if (stream.toList().containsAll(neededScopes)) {
                     LOGGER.info(() -> "Storing and using provided token");
                     client.store(prefs);
                     return Opt.of(client);
                 }
-                LOGGER.info("Provided token is missing bot:play scope");
+                LOGGER.info("Provided token is missing needed scopes scope");
                 return Opt.empty();
             } else {
                 if (scopeReq instanceof Fail(int status, _) && status == 401) {
@@ -60,7 +65,7 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
         if (client instanceof ClientAuth auth) {
             var scopeReq = auth.scopes();
             if (scopeReq instanceof Entries(var stream)) {
-                if (stream.anyMatch(scope -> scope == Client.Scope.bot_play)) {
+                if (stream.toList().containsAll(neededScopes)) {
                     LOGGER.info(() -> "Using stored token");
                     return Opt.of(auth);
                 }
@@ -87,7 +92,7 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
                 Tip, open URL in "incognito"/private browser to log in with bot account
                 to avoid logging out with normal account.
                 """.formatted(uri)),
-            pkce -> pkce.scope(Client.Scope.bot_play));
+            pkce -> pkce.scope(neededScopes.toArray(Client.Scope[]::new)));
 
         if (! (authResult instanceof Client.AuthOk(var auth))) {
             LOGGER.warning(() -> "OAuth PKCE flow failed: %s".formatted(authResult));

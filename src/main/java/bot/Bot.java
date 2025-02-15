@@ -40,6 +40,11 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
             sendChallenge(challengeUser, clientAndAccount.client());
         }
 
+        // Check if we should ask to be paired for a game in arena
+        if (System.getenv("ARENA_ID") instanceof String arenaId) {
+            joinArena(arenaId, clientAndAccount.client());
+        }
+
         // Listen for game start events and incoming challenges
         try (var scope = StructuredTaskScope.open();
              var stream = events.stream();) {
@@ -56,6 +61,13 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
     static void sendChallenge(String user, ClientAuth client) {
         client.challenges().challenge(user, p -> p.clockBlitz5m0s().rated(false));
+    }
+
+    static void joinArena(String arenaId, ClientAuth client) {
+        switch(client.tournaments().joinArena(arenaId)) {
+            case Entry<Void>(_), None()    -> System.out.println("Joined %s".formatted(arenaId));
+            case Fail(int status, var err) -> System.out.println("Failed to join %s - %d %s".formatted(arenaId, status, err));
+        }
     }
 
     static void sleep(Duration duration) { try { Thread.sleep(duration); } catch (InterruptedException _) {} }
