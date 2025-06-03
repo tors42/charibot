@@ -17,8 +17,8 @@
     </dependencies>
 
     <properties>
-        <!-- https://jdk.java.net/loom/ -->
-        <maven.compiler.release>24</maven.compiler.release>
+        <!-- https://jdk.java.net/25/ -->
+        <maven.compiler.release>25</maven.compiler.release>
         <!-- -->
 
         <source.jdk>${env.JAVA_HOME}</source.jdk>
