@@ -54,7 +54,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                 case Event.GameStopEvent _,
                      Event.GameStartEvent _,
                      Event.ChallengeCanceledEvent _,
-                     Event.ChallengeDeclinedEvent _      -> LOGGER.fine(event::toString);
+                     Event.ChallengeDeclinedEvent _      -> LOGGER.info(event::toString);
             }});
         }
     }
