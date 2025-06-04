@@ -7,7 +7,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
     static final Logger LOGGER = Logger.getLogger("bot");
 
-    public static void main(String[] args) {
+    static void main() {
         while (true) {
             try {
                 if (ClientAndAccount.initialize().map(Bot::new) instanceof Some(var bot)) bot.run();
