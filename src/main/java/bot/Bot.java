@@ -201,8 +201,12 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                         processMoves.accept(String.join(" ", moveList));
                     }
 
-                    case GameStateEvent.OpponentGone gone                  -> LOGGER.info(() -> "Gone: %s".formatted(gone));
-                    case GameStateEvent.Chat(var name, var text, var room) -> LOGGER.info(() -> "Chat: [%s][%s]: %s".formatted(name, room, text));
+                    case GameStateEvent.OpponentGone(_, GameStateEvent.Yes())
+                        -> client.bot().claimDraw(game.gameId());
+                    case GameStateEvent.OpponentGone gone
+                        -> LOGGER.info(() -> "Gone: %s".formatted(gone));
+                    case GameStateEvent.Chat(var name, var text, var room)
+                        -> LOGGER.info(() -> "Chat: [%s][%s]: %s".formatted(name, room, text));
                 }});
             }
             LOGGER.fine(() -> "GameEvent handler for %s finished".formatted(game.gameId()));
