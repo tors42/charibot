@@ -195,7 +195,7 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                     }
 
                     case GameStateEvent.OpponentGone(_, GameStateEvent.Yes())
-                        -> client.bot().claimDraw(game.gameId());
+                        -> LOGGER.info("Claim Draw: %s".formatted(client.bot().claimDraw(game.gameId())));
                     case GameStateEvent.OpponentGone gone
                         -> LOGGER.info(() -> "Gone: %s".formatted(gone));
                     case GameStateEvent.Chat(var name, var text, var room)
