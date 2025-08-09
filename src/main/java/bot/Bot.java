@@ -119,19 +119,12 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                         ? board.blackToMove()
                         : board.whiteToMove()) return;
 
-                List<Board.Move> validMoves = new ArrayList<>(board.validMoves());
-
-                Collections.shuffle(validMoves, new Random());
-                One<?> result = validMoves.stream()
+                One<?> result = board.validMoves().stream()
+                    .skip(new Random().nextInt(board.validMoves().size()))
                     .map(Board.Move::uci)
                     .findFirst()
-                    .map(uci -> {
-                        //var updatedBoard = board.play(uci);
-                        //boolean draw = updatedBoard.gameState() == GameState.draw_by_threefold_repetition
-                        //    || updatedBoard.gameState() == GameState.draw_by_fifty_move_rule;
-                        //return client.bot().handleDrawOffer(game.gameId(), true);
-                        return client.bot().move(game.gameId(), uci);
-                    }).orElse(One.fail(-1, Err.from("no move")));
+                    .map(uci -> client.bot().move(game.gameId(), uci))
+                    .orElse(One.fail(-1, Err.from("no move")));
 
                 if (result instanceof Fail<?> fail) {
                     LOGGER.warning(() -> "Play failed: %s - resigning".formatted(fail));
