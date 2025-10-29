@@ -7,13 +7,11 @@ record Rules(List<Rule> rules) {
 
     record Rule(BiPredicate<Event.ChallengeCreatedEvent, Map<String, String>> cond, String msg, Enums.DeclineReason reason) {}
 
-    static Rules defaultRules() {
+    static Rules defaultRules(Map<String, BoardProvider> boardProviders) {
         return new Rules(List.of(
             new Rule((e,_) -> ! e.challenge().players().challengerOpt().isPresent(), "No challenger", Enums.DeclineReason.generic),
             new Rule((e,_) -> e.challenge().gameType().rated(), "Rated", Enums.DeclineReason.casual),
-            new Rule((e,_) -> e.challenge().gameType().variant() != Variant.Basic.standard
-                && ! (e.challenge().gameType().variant() instanceof Variant.Chess960)
-                && ! (e.challenge().gameType().variant() instanceof Variant.FromPosition), "Variant", Enums.DeclineReason.standard),
+            new Rule((e,_) -> ! boardProviders.containsKey(e.challenge().gameType().variant().key()), "Variant", Enums.DeclineReason.standard),
             new Rule((_, games) -> games.size() > 8, "Too many games", Enums.DeclineReason.later),
             new Rule((e, games) -> (! (e.rematchOf() instanceof Some))
                 && games.containsKey(e.challenge().players().challengerOpt().map(p -> p.user().id()).orElse("")), "Existing game", Enums.DeclineReason.later)

@@ -12,7 +12,7 @@ on:
 jobs:
   jlink:
     env:
-      JDK_BASE_URL: "https://download.java.net/java/early_access/jdk25/28/GPL/"
+      JDK_BASE_URL: "https://download.java.net/java/GA/jdk25.0.1/2fbf10d8c78e40bd87641c434705079d/8/GPL/"
       build_os: linux
       build_arch: x64
       build_pkg: tar.gz
@@ -39,8 +39,8 @@ jobs:
 
       - name: Download target OS+Arch JDK
         # curl --output /tmp/jdk.tar.gz \
-        # https://download.java.net/java/early_access/jdk25/28/GPL/openjdk-25-ea+28_linux-x64_bin.tar.gz
-        run: curl --output ${{ runner.temp }}/jdk.${{ matrix.pkg }} ${{ env.JDK_BASE_URL }}/openjdk-25-ea+28_${{ matrix.os }}-${{ matrix.arch }}_bin.${{ matrix.pkg }}
+        # https://download.java.net/java/GA/jdk25.0.1/2fbf10d8c78e40bd87641c434705079d/8/GPL/openjdk-25.0.1_linux-x64_bin.tar.gz
+        run: curl --output ${{ runner.temp }}/jdk.${{ matrix.pkg }} ${{ env.JDK_BASE_URL }}/openjdk-25.0.1_${{ matrix.os }}-${{ matrix.arch }}_bin.${{ matrix.pkg }}
 
       # In order to avoid knowing the directory structure within the different target OS+Arch archives,
       # using setup-java action to unpack the target OS+Arch archive (probably performs unpack + JAVA_HOME + PATH)
@@ -49,7 +49,7 @@ jobs:
         with:
           distribution: 'jdkfile'
           jdkFile: ${{ runner.temp }}/jdk.${{ matrix.pkg }}
-          java-version: '23'
+          java-version: '25'
           architecture: ${{ matrix.arch }}
 
       - name: Copy target JDK
@@ -57,14 +57,14 @@ jobs:
 
       - name: Download build environment JDK
         if: ${{ matrix.os != env.build_os || matrix.arch != env.build_arch }}
-        run: curl --output ${{ runner.temp }}/buildjdk.${{ env.build_pkg }} ${{ env.JDK_BASE_URL }}/openjdk-25-ea+28_${{ env.build_os }}-${{ env.build_arch }}_bin.${{ env.build_pkg }}
+        run: curl --output ${{ runner.temp }}/buildjdk.${{ env.build_pkg }} ${{ env.JDK_BASE_URL }}/openjdk-25.0.1_${{ env.build_os }}-${{ env.build_arch }}_bin.${{ env.build_pkg }}
 
       - uses: actions/setup-java@v4
         if: ${{ matrix.os != env.build_os || matrix.arch != env.build_arch }}
         with:
           distribution: 'jdkfile'
           jdkFile: ${{ runner.temp }}/buildjdk.${{ env.build_pkg}}
-          java-version: '23'
+          java-version: '25'
           architecture: ${{ env.build_arch }}
 
       - name: Set version in pom.xml

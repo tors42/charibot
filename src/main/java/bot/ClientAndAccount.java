@@ -89,7 +89,7 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
                 """.formatted(uri)),
             pkce -> pkce.scope(Client.Scope.bot_play));
 
-        if (! (authResult instanceof Client.AuthOk(var auth))) {
+        if (! (authResult instanceof Some(var auth))) {
             LOGGER.warning(() -> "OAuth PKCE flow failed: %s".formatted(authResult));
             return Opt.empty();
         }
@@ -103,7 +103,7 @@ record ClientAndAccount(ClientAuth client, UserAuth account) {
     static Opt<UserAuth> initializeAccount(ClientAuth client) {
         // Check the Lichess account
         var res = client.account().profile();
-        if (! (res instanceof Entry(var account))) {
+        if (! (res instanceof Some(var account))) {
             LOGGER.warning(() -> "Failed to lookup bot account: %s".formatted(res));
             return Opt.empty();
         }

@@ -3,7 +3,7 @@ package bot;
 import module chariot;
 import module java.base;
 
-record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules rules) {
+record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules rules, Map<String, BoardProvider> providers) {
 
     static final Logger LOGGER = Logger.getLogger("bot");
 
@@ -22,7 +22,11 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
     }
 
     Bot(ClientAndAccount clientAndProfile) {
-        this(clientAndProfile, new ConcurrentHashMap<>(), Rules.defaultRules());
+        Map<String, BoardProvider> boardProviders = BoardProvider.providers().entrySet()
+            .stream().filter(e -> Variant.fromString(e.getKey()) instanceof Variant)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        boardProviders.forEach((k,v) -> LOGGER.info("Provider - %s - %s".formatted(k,v.getClass().getName())));
+        this(clientAndProfile, new ConcurrentHashMap<>(), Rules.defaultRules(boardProviders), boardProviders);
     }
 
     void run() {
@@ -65,14 +69,21 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
 
     static void joinArena(String arenaId, ClientAuth client) {
         switch(client.tournaments().joinArena(arenaId)) {
-            case Entry<Void>(_), None()    -> System.out.println("Joined %s".formatted(arenaId));
-            case Fail(int status, var err) -> System.out.println("Failed to join %s - %d %s".formatted(arenaId, status, err));
+            case Ok() -> LOGGER.info(() -> "Joined %s".formatted(arenaId));
+            case Fail(int status, var err) -> LOGGER.info(() -> "Failed to join %s - %d %s".formatted(arenaId, status, err));
         }
     }
 
     static void sleep(Duration duration) { try { Thread.sleep(duration); } catch (InterruptedException _) {} }
 
     void handleChallenge(Event.ChallengeCreatedEvent event) {
+        // Check if we are the challenger
+        if (event.challenge().players().challengerOpt()
+                .map(player -> clientAndAccount.account().id()
+                    .equals(player.user().id()))
+                .orElse(false)) {
+            return;
+        }
         // Decline if unwanted challenges
         if (rules.decliner(event, games, clientAndAccount.client(), LOGGER) instanceof Some(Runnable decliner)) {
             decliner.run();
@@ -87,7 +98,8 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
         }
 
         // Greet opponent
-        String opponent = event.challenge().players().challengerOpt().map(p -> p.user().name()).orElse("Opponent");
+        String opponent = event.challenge().players().challengerOpt()
+            .map(p -> p.user().name()).orElse("Opponent");
         LOGGER.info(() -> "Accepted %s\n%s".formatted(event, opponent));
         sleep(Duration.ofSeconds(1));
         String greeting = event.isRematch()
@@ -102,29 +114,33 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
     void handleGame(GameInfo game) {
         var client = clientAndAccount.client();
         var account = clientAndAccount.account();
+        var provider = providers.get(game.variant().key());
+        if (provider == null) {
+            client.bot().resign(game.gameId());
+            return;
+        }
+
+        Board initialBoard = provider.fromFEN(game.variant().key(), game.fen());
+
         games.put(game.opponent().id(), game.gameId());
 
         try {
-            String fenAtGameStart = game.fen();
-
             Function<Enums.Color, String> nameByColor = color ->
                 color == game.color() ? account.name() : game.opponent().name();
 
             Consumer<String> processMoves = moves -> {
-                Board board = moves.isBlank()
-                    ? Board.fromFEN(fenAtGameStart)
-                    : Board.fromFEN(fenAtGameStart).play(moves);
+                Board board = initialBoard.play(moves);
 
                 if (game.color() == Enums.Color.white
-                        ? board.blackToMove()
-                        : board.whiteToMove()) return;
+                        ? board.sideToMove() == Side.black
+                        : board.sideToMove() == Side.white) return;
 
-                One<?> result = board.validMoves().stream()
-                    .skip(new Random().nextInt(board.validMoves().size()))
-                    .map(Board.Move::uci)
+                Collection<String> validMoves = board.validMoves();
+                Ack result = validMoves.stream()
+                    .skip(new Random().nextInt(validMoves.size()))
                     .findFirst()
-                    .map(uci -> client.bot().move(game.gameId(), uci))
-                    .orElse(One.fail(-1, Err.from("no move")));
+                    .map(move -> client.bot().move(game.gameId(), move))
+                    .orElse(Ack.fail("no move"));
 
                 if (result instanceof Fail<?> fail) {
                     LOGGER.warning(() -> "Play failed: %s - resigning".formatted(fail));
@@ -157,21 +173,20 @@ record Bot(ClientAndAccount clientAndAccount, Map<String,String> games, Rules ru
                         moveList = moveList.subList(movesPlayedSinceStart.get(), moveList.size());
                         int moves = moveList.size();
                         if (moves > 0) {
-                            Board board = Board.fromFEN(fenAtGameStart);
+                            Board board = initialBoard;
                             if (moves > 1) board = board.play(String.join(" ", moveList.subList(0, moves-1)));
                             String lastMove = moveList.getLast();
 
                             String infoBeforeMove = "%s (%s) played (%s - %s)".formatted(
                                     lastMove,
                                     board.toSAN(lastMove),
-                                    nameByColor.apply(Enums.Color.white) + (board.whiteToMove() ? "*" : ""),
-                                    nameByColor.apply(Enums.Color.black) + (board.blackToMove() ? "*" : ""));
+                                    nameByColor.apply(Enums.Color.white) + (board.sideToMove() == Side.white ? "*" : ""),
+                                    nameByColor.apply(Enums.Color.black) + (board.sideToMove() == Side.black ? "*" : ""));
 
                             board = board.play(lastMove);
 
-                            String infoAfterMove = "%s %s %s".formatted(
+                            String infoAfterMove = "%s %s".formatted(
                                     board.toFEN(),
-                                    board.gameState(),
                                     state.status());
 
                             LOGGER.info("%s\n%s".formatted(infoBeforeMove, infoAfterMove));
