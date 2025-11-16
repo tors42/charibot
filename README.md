@@ -77,7 +77,7 @@ The application will be packaged in `target/charibot-0.0.1-SNAPSHOT-<os>-<arch>.
 `target/maven-jlink/classifiers/<os>-<arch>/bin/bot`)
 
 Note, it is also possible to run the application from source without building
-it with Maven. This needs the above JDK, downloading of dependency [chariot-0.2.0.jar](https://repo1.maven.org/maven2/io/github/tors42/chariot/0.2.0/chariot-0.2.0.jar) and providing command-line flags:
+it with Maven. This needs the above JDK, downloading of dependency [chariot-0.2.1.jar](https://repo1.maven.org/maven2/io/github/tors42/chariot/0.2.1/chariot-0.2.1.jar) and providing command-line flags:
 
-    $ java --enable-preview -p chariot-0.2.0.jar --add-modules chariot src/main/java/bot/Bot.java
+    $ java --enable-preview -p chariot-0.2.1.jar --add-modules chariot src/main/java/bot/Bot.java
 
