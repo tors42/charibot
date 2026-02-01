@@ -12,8 +12,8 @@ on:
 jobs:
   jlink:
     env:
-      JDK_VERSION: "25.0.1"
-      JDK_BASE_URL: "https://download.java.net/java/GA/jdk25.0.1/2fbf10d8c78e40bd87641c434705079d/8/GPL/"
+      JDK_VERSION: "25.0.2"
+      JDK_BASE_URL: "https://download.java.net/java/GA/jdk25.0.2/b1e0dfa218384cb9959bdcb897162d4e/10/GPL/"
       build_os: linux
       build_arch: x64
       build_pkg: tar.gz
@@ -39,8 +39,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download target OS+Arch JDK
-        # curl --output /tmp/jdk.tar.gz \
-        # https://download.java.net/java/GA/jdk25.0.1/2fbf10d8c78e40bd87641c434705079d/8/GPL/openjdk-25.0.1_linux-x64_bin.tar.gz
         run: curl --output ${{ runner.temp }}/jdk.${{ matrix.pkg }} ${{ env.JDK_BASE_URL }}/openjdk-${{ env.JDK_VERSION }}_${{ matrix.os }}-${{ matrix.arch }}_bin.${{ matrix.pkg }}
 
       # In order to avoid knowing the directory structure within the different target OS+Arch archives,
