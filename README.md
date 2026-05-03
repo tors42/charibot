@@ -68,7 +68,7 @@ The workflow which builds the application can be seen in
 
 ## Build Locally
 
-Needs [JDK 25](https://jdk.java.net/25) and [Maven](https://maven.apache.org)
+Use latest Java [JDK 26](https://jdk.java.net/26) and [Maven](https://maven.apache.org)
 
     $ mvn clean verify
 

@@ -17,7 +17,7 @@
     </dependencies>
 
     <properties>
-        <maven.compiler.release>25</maven.compiler.release>
+        <maven.compiler.release>26</maven.compiler.release>
 
         <source.jdk>${env.JAVA_HOME}</source.jdk>
         <os.arch.classifier>local</os.arch.classifier>
@@ -28,7 +28,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jlink-plugin</artifactId>
-                <version>3.2.0</version>
+                <version>3.3.0</version>
                 <extensions>true</extensions>
                 <configuration>
                     <sourceJdkModules>${source.jdk}</sourceJdkModules>
@@ -50,7 +50,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.14.1</version>
+                <version>3.15.0</version>
                 <configuration>
                     <compilerArgs>
                         <compilerArg>--enable-preview</compilerArg>
